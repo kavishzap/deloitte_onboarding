@@ -31,7 +31,12 @@ const SAMPLE_PROMPTS = [
   "A company wants to improve customer service using AI.",
 ]
 
-const WEBHOOK_URL = "https://kavishmk.app.n8n.cloud/webhook-test/51257716-8624-4a59-8c84-59e08dafddba"
+/**
+ * Browser-visible env must use `NEXT_PUBLIC_*` (see `.env`).
+ * Use the same-origin API route so n8n CORS does not block the request.
+ */
+const CHAT_WEBHOOK_URL =
+  process.env.NEXT_PUBLIC_N8N_CHAT_ENDPOINT?.trim() || "/api/n8n/webhook"
 
 function parseResponse(content: string): ParsedResponse | null {
   try {
@@ -141,7 +146,7 @@ export function AIChatbot() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(WEBHOOK_URL, {
+      const response = await fetch(CHAT_WEBHOOK_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
