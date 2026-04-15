@@ -1,0 +1,48 @@
+"use client"
+
+import { motion } from "framer-motion"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Cpu, Workflow } from "lucide-react"
+
+export function Navbar() {
+  return (
+    <motion.header 
+      initial={{ y: -20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60"
+    >
+      <div className="container mx-auto flex h-16 items-center justify-between px-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
+            <Cpu className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold text-foreground tracking-tight">
+              Autonomous Business Transformation Copilot
+            </span>
+            <span className="text-xs text-muted-foreground">
+              AI-Powered Business Transformation Workflow
+            </span>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary text-xs font-medium px-3 py-1">
+            <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-primary animate-pulse inline-block" />
+            Hackathon Prototype
+          </Badge>
+          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-xs font-medium px-3 py-1">
+            <Workflow className="mr-1.5 h-3 w-3" />
+            n8n Connected
+          </Badge>
+          <Avatar className="h-8 w-8 border border-border">
+            <AvatarImage src="" alt="User" />
+            <AvatarFallback className="bg-secondary text-xs font-medium text-foreground">DL</AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+    </motion.header>
+  )
+}
