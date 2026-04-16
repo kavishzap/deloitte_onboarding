@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Send,
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { DeloitteListeningPortal } from "@/components/deloitte-listening-portal"
 
 interface Message {
   id: string
@@ -136,6 +138,7 @@ export function AIChatbot() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [listeningOpen, setListeningOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -223,7 +226,8 @@ export function AIChatbot() {
       id="transformation-copilot"
       className="scroll-mt-24 py-16 px-4 sm:px-6 lg:px-8"
     >
-      <div className="max-w-4xl mx-auto">
+      <DeloitteListeningPortal open={listeningOpen} onClose={() => setListeningOpen(false)} />
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -243,14 +247,34 @@ export function AIChatbot() {
           </p>
         </motion.div>
 
-        {/* Chat Container */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.1 }}
-          className="bg-card border border-border rounded-2xl shadow-xl overflow-hidden"
-        >
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-10 lg:items-stretch">
+          {/* Left: illustration (1/3) */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.05 }}
+            className="flex items-center justify-center lg:col-span-1"
+          >
+            <div className="relative aspect-[4/5] w-full max-w-sm mx-auto max-h-[min(70vh,28rem)] lg:max-w-none lg:max-h-none lg:aspect-auto lg:min-h-[22rem] lg:h-full overflow-hidden bg-transparent">
+              <Image
+                src="/chat.png"
+                alt="Transformation Copilot chat preview"
+                fill
+                className="object-contain object-center p-3 sm:p-4"
+                sizes="(max-width: 1024px) 90vw, 33vw"
+              />
+            </div>
+          </motion.div>
+
+          {/* Right: chat (2/3) */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.1 }}
+            className="lg:col-span-2 bg-card border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col min-h-0"
+          >
           {/* Chat Header */}
           <div className="px-6 py-4 border-b border-border bg-secondary/30 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -406,10 +430,17 @@ export function AIChatbot() {
                 className="min-h-[52px] max-h-[120px] flex-1 resize-none bg-background border-border focus:border-primary focus:ring-primary/20"
                 disabled={isLoading}
               />
-              <div
-                className="animate-copilot-mic-panel-glow relative flex h-[52px] w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-500/40 bg-emerald-500/[0.08]"
-                aria-hidden="true"
-                title="Voice input"
+              <button
+                type="button"
+                title={listeningOpen ? "Close voice copilot" : "Open voice copilot"}
+                aria-pressed={listeningOpen}
+                aria-label={listeningOpen ? "Close Deloitte copilot listener" : "Open Deloitte copilot listener"}
+                onClick={() => setListeningOpen((o) => !o)}
+                className={`animate-copilot-mic-panel-glow relative flex h-[52px] w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border bg-emerald-500/[0.08] transition-[box-shadow,border-color] ${
+                  listeningOpen
+                    ? "border-emerald-400 ring-2 ring-emerald-400/50"
+                    : "border-emerald-500/40 hover:border-emerald-400/70"
+                }`}
               >
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]" aria-hidden>
                   <div
@@ -420,7 +451,7 @@ export function AIChatbot() {
                 <span className="relative z-10 inline-flex animate-copilot-mic-icon-pulse text-emerald-600 dark:text-emerald-400">
                   <Mic className="h-5 w-5" strokeWidth={2.25} />
                 </span>
-              </div>
+              </button>
               <Button
                 onClick={sendMessage}
                 disabled={!input.trim() || isLoading}
@@ -437,7 +468,8 @@ export function AIChatbot() {
               Press Enter to send, Shift + Enter for new line
             </p>
           </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </section>
   )

@@ -2,10 +2,9 @@
 
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Copy, Download, FileText, RotateCcw, TrendingDown, Zap, Clock, Target } from "lucide-react"
+import { TrendingDown, Zap, Clock, Target } from "lucide-react"
 
 const executiveSummary = {
   summary: "The proposed AI-driven transformation will enable the retail client to achieve 20%+ cost reduction through intelligent inventory management, demand forecasting, and automated replenishment systems.",
@@ -125,37 +124,6 @@ export function ExecutiveOutputPanel() {
             </CardContent>
           </Card>
         ))}
-      </motion.div>
-
-      {/* Action Buttons */}
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-      >
-        <Card className="bg-card border-border/50 rounded-xl">
-          <CardContent className="p-4">
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="outline" size="sm" className="border-border/50 hover:bg-secondary/80 h-9 rounded-lg text-xs">
-                <Copy className="mr-1.5 h-3.5 w-3.5" />
-                Copy Summary
-              </Button>
-              <Button variant="outline" size="sm" className="border-border/50 hover:bg-secondary/80 h-9 rounded-lg text-xs">
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Export JSON
-              </Button>
-              <Button variant="outline" size="sm" className="border-border/50 hover:bg-secondary/80 h-9 rounded-lg text-xs">
-                <FileText className="mr-1.5 h-3.5 w-3.5" />
-                Generate Report
-              </Button>
-              <Button variant="outline" size="sm" className="border-border/50 hover:bg-secondary/80 h-9 rounded-lg text-xs text-muted-foreground">
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                Reset Analysis
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </motion.div>
     </div>
   )

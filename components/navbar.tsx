@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Cpu, Workflow } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -39,10 +38,6 @@ export function Navbar() {
             n8n Connected
           </Badge>
           <ThemeToggle />
-          <Avatar className="h-8 w-8 border border-border">
-            <AvatarImage src="" alt="User" />
-            <AvatarFallback className="bg-secondary text-xs font-medium text-foreground">DL</AvatarFallback>
-          </Avatar>
         </div>
       </div>
     </motion.header>

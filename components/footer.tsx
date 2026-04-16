@@ -25,7 +25,7 @@ export function Footer() {
           </div>
           
           <p className="text-xs text-muted-foreground text-center md:text-right">
-            Prototype for internal innovation use only. All data is synthetic.
+            Prototype for internal innovation use only.
           </p>
         </div>
       </div>
