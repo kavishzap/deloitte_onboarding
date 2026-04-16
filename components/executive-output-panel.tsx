@@ -1,22 +1,15 @@
 "use client"
 
+import { useCallback, useState } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { CheckCircle2, Cpu, Sparkles } from "lucide-react"
+import { Cpu, Loader2, RotateCcw, Sparkles } from "lucide-react"
+import { ExecutiveResponseBody } from "@/components/executive-response-body"
+import { useSoftwareProposal } from "@/components/software-proposal-context"
 import { scrollToAgentWorkflow, useWorkflowWorkspace } from "@/components/workflow-workspace-context"
-import type { ParsedResponse } from "@/lib/copilot-response-types"
-
-const COPILOT_SECTION_ID = "transformation-copilot"
-
-function scrollToCopilot() {
-  document.getElementById(COPILOT_SECTION_ID)?.scrollIntoView({
-    behavior: "smooth",
-    block: "start",
-  })
-}
+import { loadCopilotSession } from "@/lib/copilot-local-session"
 
 function ExecutiveEmptyState({ variant }: { variant: "idle" | "awaiting" }) {
   return (
@@ -65,73 +58,57 @@ function ExecutiveEmptyState({ variant }: { variant: "idle" | "awaiting" }) {
   )
 }
 
-function ExecutiveBody({ response }: { response: ParsedResponse }) {
-  return (
-    <div className="space-y-5">
-      {response.executiveSummary && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Executive Summary</h4>
-          <p className="text-sm leading-relaxed text-foreground">{response.executiveSummary}</p>
-        </div>
-      )}
-
-      {response.keyRecommendations && response.keyRecommendations.length > 0 && (
-        <>
-          {response.executiveSummary && <Separator className="bg-border/30" />}
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Key Recommendations</h4>
-            <ul className="space-y-1.5">
-              {response.keyRecommendations.map((rec, index) => (
-                <li key={index} className="flex items-start gap-2 text-sm text-foreground">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  {rec}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </>
-      )}
-
-      {response.expectedBusinessValue && (
-        <>
-          <Separator className="bg-border/30" />
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Expected Business Value</h4>
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-              <p className="text-sm font-medium text-foreground">{response.expectedBusinessValue}</p>
-            </div>
-          </div>
-        </>
-      )}
-
-      {response.nextSteps && response.nextSteps.length > 0 && (
-        <>
-          <Separator className="bg-border/30" />
-          <div className="space-y-2">
-            <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Next Steps</h4>
-            <ol className="space-y-1.5">
-              {response.nextSteps.map((step, index) => (
-                <li key={index} className="flex items-start gap-2 text-sm text-foreground">
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/50 bg-secondary text-xs text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
+const BUSINESS_PROPOSAL_API = "/api/n8n/business-proposal"
 
 export function ExecutiveOutputPanel() {
-  const { sessionPhase, executivePayload, executiveFallbackText, loadingSimAgents } =
+  const { sessionPhase, executivePayload, executiveFallbackText, loadingSimAgents, restartWorkspace } =
     useWorkflowWorkspace()
+  const { proposalResult, setProposalResult } = useSoftwareProposal()
+
+  const [proposalLoading, setProposalLoading] = useState(false)
+  const [proposalError, setProposalError] = useState<string | null>(null)
 
   const hasDisplayContent =
     sessionPhase === "revealed" && !!(executivePayload || executiveFallbackText)
+
+  const runSoftwareProposalAgent = useCallback(async () => {
+    setProposalError(null)
+    setProposalLoading(true)
+    try {
+      const copilotSession = loadCopilotSession()
+      const res = await fetch(BUSINESS_PROPOSAL_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ copilotSession }),
+      })
+      const rawText = await res.text()
+      let payload: unknown = rawText
+      try {
+        payload = rawText ? (JSON.parse(rawText) as unknown) : null
+      } catch {
+        payload = rawText
+      }
+      if (!res.ok) {
+        const errMsg =
+          typeof payload === "object" && payload !== null && "error" in payload
+            ? String((payload as { error?: unknown }).error)
+            : `Request failed (${res.status})`
+        throw new Error(errMsg || `Request failed (${res.status})`)
+      }
+      setProposalResult(payload)
+    } catch (e) {
+      setProposalResult(null)
+      setProposalError(e instanceof Error ? e.message : "Proposal request failed")
+    } finally {
+      setProposalLoading(false)
+    }
+  }, [setProposalResult])
+
+  const startOverEverything = useCallback(() => {
+    restartWorkspace()
+    setProposalError(null)
+    setProposalLoading(false)
+  }, [restartWorkspace])
 
   return (
     <div className="space-y-4">
@@ -187,7 +164,7 @@ export function ExecutiveOutputPanel() {
                   </Button>
                 </div>
               ) : sessionPhase === "revealed" && executivePayload ? (
-                <ExecutiveBody response={executivePayload} />
+                <ExecutiveResponseBody response={executivePayload} />
               ) : sessionPhase === "revealed" && executiveFallbackText ? (
                 <pre className="max-h-[min(60vh,28rem)] overflow-auto rounded-lg border border-border/40 bg-secondary/30 p-4 font-mono text-xs leading-relaxed text-foreground/90">
                   {executiveFallbackText}
@@ -198,15 +175,42 @@ export function ExecutiveOutputPanel() {
             </div>
 
             {hasDisplayContent && (
-              <div className="mt-4 border-t border-border/40 pt-4">
-                <Button
-                  type="button"
-                  className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto"
-                  onClick={scrollToCopilot}
-                >
-                  <Cpu className="h-4 w-4" />
-                  Run Software Proposal Agent
-                </Button>
+              <div className="mt-4 space-y-4 border-t border-border/40 pt-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  <Button
+                    type="button"
+                    className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90 sm:w-auto"
+                    disabled={proposalLoading}
+                    onClick={runSoftwareProposalAgent}
+                  >
+                    {proposalLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Cpu className="h-4 w-4" />
+                    )}
+                    Run Software Proposal Agent
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full gap-2 border-destructive/35 text-destructive hover:bg-destructive/10 sm:w-auto"
+                    disabled={proposalLoading}
+                    onClick={startOverEverything}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Start over
+                  </Button>
+                </div>
+                {proposalError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {proposalError}
+                  </p>
+                )}
+                {proposalResult !== null && proposalResult !== undefined && !proposalError && (
+                  <p className="text-xs text-muted-foreground">
+                    The proposal is shown in a full-width section below the workflow.
+                  </p>
+                )}
               </div>
             )}
           </CardContent>

@@ -36,6 +36,8 @@ type WorkflowWorkspaceValue = {
   onAssistantReply: (assistantMessageId: string, parsed: ParsedResponse | null, rawContent: string) => void
   confirmContinue: () => void
   restartWorkspace: () => void
+  /** Chat / proposal UI register so `restartWorkspace` also clears local session views. Returns unsubscribe. */
+  registerSessionResetHandler: (handler: () => void) => () => void
   notifyCopilotLoading: (loading: boolean) => void
 }
 
@@ -66,6 +68,7 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
   const [executiveFallbackText, setExecutiveFallbackText] = useState<string | null>(null)
   const [workspaceStorageHydrated, setWorkspaceStorageHydrated] = useState(false)
   const loadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sessionResetHandlersRef = useRef(new Set<() => void>())
 
   const notifyCopilotLoading = useCallback((loading: boolean) => {
     setIsCopilotLoading(loading)
@@ -183,6 +186,14 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
     requestAnimationFrame(() => scrollToAgentWorkflow())
   }, [pendingParsed, pendingRaw])
 
+  const registerSessionResetHandler = useCallback((handler: () => void) => {
+    const set = sessionResetHandlersRef.current
+    set.add(handler)
+    return () => {
+      set.delete(handler)
+    }
+  }, [])
+
   const restartWorkspace = useCallback(() => {
     clearCopilotSession()
     setAgents(getWaitingAgents())
@@ -192,6 +203,13 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
     setPendingRaw(null)
     setExecutivePayload(null)
     setExecutiveFallbackText(null)
+    for (const fn of sessionResetHandlersRef.current) {
+      try {
+        fn()
+      } catch {
+        /* ignore subscriber errors */
+      }
+    }
   }, [])
 
   const value = useMemo(
@@ -206,6 +224,7 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
         onAssistantReply,
         confirmContinue,
         restartWorkspace,
+        registerSessionResetHandler,
         notifyCopilotLoading,
       }) satisfies WorkflowWorkspaceValue,
     [
@@ -218,6 +237,7 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
       onAssistantReply,
       confirmContinue,
       restartWorkspace,
+      registerSessionResetHandler,
       notifyCopilotLoading,
     ]
   )

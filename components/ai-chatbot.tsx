@@ -146,6 +146,7 @@ export function AIChatbot() {
     onAssistantReply,
     confirmContinue,
     restartWorkspace,
+    registerSessionResetHandler,
     pendingReplyId,
     sessionPhase,
     notifyCopilotLoading,
@@ -180,6 +181,10 @@ export function AIChatbot() {
     if (!messagesStorageHydrated) return
     saveCopilotSession({ messages: messagesToSerializable(messages) })
   }, [messagesStorageHydrated, messages])
+
+  useEffect(() => {
+    return registerSessionResetHandler(() => setMessages([]))
+  }, [registerSessionResetHandler])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -272,7 +277,6 @@ export function AIChatbot() {
   }
 
   const clearChat = () => {
-    setMessages([])
     restartWorkspace()
   }
 
@@ -467,7 +471,6 @@ export function AIChatbot() {
                                     className="border-destructive/40 text-destructive hover:bg-destructive/10"
                                     onClick={() => {
                                       restartWorkspace()
-                                      setMessages([])
                                     }}
                                   >
                                     Restart

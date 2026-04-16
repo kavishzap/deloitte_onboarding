@@ -212,3 +212,50 @@ html[data-theme="light"] {
     animation: none !important;
   }
 }
+
+/* Save as PDF: print only the business proposal viewer */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  #proposal-section-toolbar {
+    display: none !important;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  #proposal-print-root,
+  #proposal-print-root * {
+    visibility: visible !important;
+  }
+  #proposal-print-root {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
+    padding: 0 !important;
+  }
+  #proposal-print-root .proposal-print-surface {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  #proposal-print-root .text-foreground,
+  #proposal-print-root .text-foreground\/90 {
+    color: #111 !important;
+  }
+  #proposal-print-root .text-muted-foreground {
+    color: #444 !important;
+  }
+  #proposal-print-root [data-slot="scroll-area-scrollbar"] {
+    display: none !important;
+  }
+  #proposal-print-root [data-slot="scroll-area-viewport"] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
