@@ -12,6 +12,15 @@ const trustBadges = [
   { icon: Database, label: "Synthetic Data Only" },
 ]
 
+const COPILOT_SECTION_ID = "transformation-copilot"
+
+function scrollToCopilot() {
+  document.getElementById(COPILOT_SECTION_ID)?.scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  })
+}
+
 export function HeroSection() {
   return (
     <section className="relative overflow-hidden border-b border-border/50">
@@ -37,13 +46,14 @@ export function HeroSection() {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
-            <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 h-12 rounded-xl shadow-lg shadow-primary/20">
+            <Button
+              type="button"
+              size="lg"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-8 h-12 rounded-xl shadow-lg shadow-primary/20"
+              onClick={scrollToCopilot}
+            >
               <Play className="mr-2 h-4 w-4" />
-              Run Analysis
-            </Button>
-            <Button size="lg" variant="outline" className="border-border/60 hover:bg-secondary/80 font-medium px-8 h-12 rounded-xl">
-              <GitBranch className="mr-2 h-4 w-4" />
-              View Agent Flow
+              Start Automation
             </Button>
           </div>
           

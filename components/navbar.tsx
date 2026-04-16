@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Cpu, Workflow } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Navbar() {
   return (
@@ -33,10 +34,11 @@ export function Navbar() {
             <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-primary animate-pulse inline-block" />
             Hackathon Prototype
           </Badge>
-          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/5 text-emerald-400 text-xs font-medium px-3 py-1">
+          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 text-xs font-medium px-3 py-1">
             <Workflow className="mr-1.5 h-3 w-3" />
             n8n Connected
           </Badge>
+          <ThemeToggle />
           <Avatar className="h-8 w-8 border border-border">
             <AvatarImage src="" alt="User" />
             <AvatarFallback className="bg-secondary text-xs font-medium text-foreground">DL</AvatarFallback>

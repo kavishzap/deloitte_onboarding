@@ -2,7 +2,21 @@
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, Trash2, Bot, User, Loader2, Sparkles, AlertCircle, CheckCircle2, ArrowRight, TrendingUp, Lightbulb, ListChecks } from "lucide-react"
+import {
+  Send,
+  Trash2,
+  Bot,
+  User,
+  Loader2,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  TrendingUp,
+  Lightbulb,
+  ListChecks,
+  Mic,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
@@ -32,8 +46,8 @@ const SAMPLE_PROMPTS = [
 ]
 
 /**
- * Browser-visible env must use `NEXT_PUBLIC_*` (see `.env`).
- * Use the same-origin API route so n8n CORS does not block the request.
+ * `NEXT_PUBLIC_N8N_CHAT_ENDPOINT` must be a path on this app (e.g. `/api/n8n/webhook`),
+ * not the n8n URL — the browser cannot call n8n directly without n8n allowing your origin (CORS).
  */
 const CHAT_WEBHOOK_URL =
   process.env.NEXT_PUBLIC_N8N_CHAT_ENDPOINT?.trim() || "/api/n8n/webhook"
@@ -205,7 +219,10 @@ export function AIChatbot() {
   }
 
   return (
-    <section className="py-16 px-4 sm:px-6 lg:px-8">
+    <section
+      id="transformation-copilot"
+      className="scroll-mt-24 py-16 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <motion.div
@@ -262,9 +279,6 @@ export function AIChatbot() {
           <ScrollArea className="h-[400px] p-6" ref={scrollRef}>
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
-                <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                  <Sparkles className="h-8 w-8 text-primary" />
-                </div>
                 <h4 className="text-lg font-semibold text-foreground mb-2">
                   Describe Your Business Challenge
                 </h4>
@@ -382,20 +396,35 @@ export function AIChatbot() {
 
           {/* Input Area */}
           <div className="px-6 py-4 border-t border-border bg-secondary/20">
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3 items-end">
               <Textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Describe your business transformation challenge..."
-                className="min-h-[52px] max-h-[120px] resize-none bg-background border-border focus:border-primary focus:ring-primary/20"
+                className="min-h-[52px] max-h-[120px] flex-1 resize-none bg-background border-border focus:border-primary focus:ring-primary/20"
                 disabled={isLoading}
               />
+              <div
+                className="animate-copilot-mic-panel-glow relative flex h-[52px] w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-500/40 bg-emerald-500/[0.08]"
+                aria-hidden="true"
+                title="Voice input"
+              >
+                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]" aria-hidden>
+                  <div
+                    className="absolute inset-[-40%] animate-copilot-mic-flow opacity-90 bg-[linear-gradient(105deg,transparent_0%,transparent_38%,rgba(74,222,128,0.55)_50%,rgba(16,185,129,0.75)_52%,rgba(52,211,153,0.45)_54%,transparent_65%,transparent_100%)] bg-[length:220%_100%]"
+                    aria-hidden
+                  />
+                </div>
+                <span className="relative z-10 inline-flex animate-copilot-mic-icon-pulse text-emerald-600 dark:text-emerald-400">
+                  <Mic className="h-5 w-5" strokeWidth={2.25} />
+                </span>
+              </div>
               <Button
                 onClick={sendMessage}
                 disabled={!input.trim() || isLoading}
-                className="h-[52px] px-6 bg-primary hover:bg-primary/90 text-primary-foreground"
+                className="h-[52px] shrink-0 px-5 sm:px-6 bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {isLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />

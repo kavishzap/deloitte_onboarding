@@ -42,9 +42,9 @@ export function ExecutiveOutputPanel() {
         <Card className="bg-card border-border/50 rounded-2xl shadow-xl shadow-black/10">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full bg-emerald-400" />
+              <div className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
               Executive Output
-              <Badge variant="outline" className="ml-auto border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs">
+              <Badge variant="outline" className="ml-auto border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs">
                 Ready for Review
               </Badge>
             </CardTitle>
@@ -118,7 +118,7 @@ export function ExecutiveOutputPanel() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-foreground">{kpi.value}</span>
-                <Badge variant="outline" className="text-xs border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                <Badge variant="outline" className="text-xs border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
                   {kpi.trend}
                 </Badge>
               </div>

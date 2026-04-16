@@ -81,7 +81,7 @@ function StatusBadge({ status }: { status: AgentStatus }) {
   const config = {
     waiting: { label: "Waiting", className: "bg-muted text-muted-foreground border-border/50", icon: Clock },
     running: { label: "Running", className: "bg-primary/10 text-primary border-primary/30", icon: Loader2 },
-    complete: { label: "Complete", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30", icon: Check },
+    complete: { label: "Complete", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30", icon: Check },
   }
   
   const { label, className, icon: Icon } = config[status]
@@ -134,7 +134,7 @@ function AgentCard({ agent, index }: { agent: Agent; index: number }) {
               agent.status === "running" 
                 ? "text-primary" 
                 : agent.status === "complete"
-                ? "text-emerald-400"
+                ? "text-emerald-700 dark:text-emerald-400"
                 : "text-muted-foreground"
             )} />
           </div>
