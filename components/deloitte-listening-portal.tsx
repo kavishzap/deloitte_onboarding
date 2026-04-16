@@ -2,7 +2,6 @@
 
 import { useLayoutEffect, useState } from "react"
 import { createPortal } from "react-dom"
-import Image from "next/image"
 import { AnimatePresence, motion } from "framer-motion"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -101,34 +100,23 @@ export function DeloitteListeningPortal({ open, onClose }: Props) {
                   transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
                 />
 
-                <div className="relative mx-auto flex w-[5.5rem] flex-col items-center">
+                <div className="relative mx-auto flex h-[5.5rem] w-[5.5rem] items-center justify-center [perspective:14rem]">
                   <motion.div
-                    className="relative overflow-hidden rounded-xl"
+                    className="h-4 w-4 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.85),0_0_6px_rgba(74,222,128,0.5)]"
+                    style={{ transformStyle: "preserve-3d" }}
                     animate={{
-                      y: [0, -5, 0],
+                      rotateY: [0, 360],
                       filter: [
-                        "drop-shadow(0 0 10px rgba(52,211,153,0.45))",
-                        "drop-shadow(0 0 22px rgba(74,222,128,0.85)) drop-shadow(0 0 8px rgba(163,230,53,0.4))",
-                        "drop-shadow(0 0 10px rgba(52,211,153,0.45))",
+                        "drop-shadow(0 0 8px rgba(52,211,153,0.5))",
+                        "drop-shadow(0 0 16px rgba(74,222,128,0.95))",
+                        "drop-shadow(0 0 8px rgba(52,211,153,0.5))",
                       ],
                     }}
-                    transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    <Image
-                      src="/deloitte-jarvis-mark.png"
-                      alt="Deloitte AI copilot mark"
-                      width={88}
-                      height={88}
-                      className="h-[5.5rem] w-[5.5rem] object-contain"
-                      priority
-                    />
-                    <motion.div
-                      className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-white/18 to-transparent"
-                      initial={{ y: "-110%" }}
-                      animate={{ y: "110%" }}
-                      transition={{ duration: 2.6, repeat: Infinity, ease: "linear" }}
-                    />
-                  </motion.div>
+                    transition={{
+                      rotateY: { duration: 2.4, repeat: Infinity, ease: "linear" },
+                      filter: { duration: 2.2, repeat: Infinity, ease: "easeInOut" },
+                    }}
+                  />
                 </div>
 
                 <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">

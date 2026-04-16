@@ -18,12 +18,9 @@ export function Navbar() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
             <Cpu className="h-5 w-5 text-primary" />
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col justify-center">
             <span className="text-sm font-semibold text-foreground tracking-tight">
               Autonomous Business Transformation Copilot
-            </span>
-            <span className="text-xs text-muted-foreground">
-              AI-Powered Business Transformation Workflow
             </span>
           </div>
         </div>

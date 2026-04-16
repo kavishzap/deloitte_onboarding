@@ -47,6 +47,13 @@ const SAMPLE_PROMPTS = [
   "A company wants to improve customer service using AI.",
 ]
 
+const LOADING_HINTS = [
+  "Running your brief through the n8n workflow — complex answers can take a little longer.",
+  "Synthesising recommendations so they land in an executive-ready format.",
+  "Still here — large payloads or cold starts sometimes add extra seconds.",
+  "You can keep working elsewhere in the tab; this reply will appear as soon as it is ready.",
+] as const
+
 /**
  * `NEXT_PUBLIC_N8N_CHAT_ENDPOINT` must be a path on this app (e.g. `/api/n8n/webhook`),
  * not the n8n URL — the browser cannot call n8n directly without n8n allowing your origin (CORS).
@@ -139,6 +146,7 @@ export function AIChatbot() {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [listeningOpen, setListeningOpen] = useState(false)
+  const [loadingHintIndex, setLoadingHintIndex] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -146,7 +154,16 @@ export function AIChatbot() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [messages])
+  }, [messages, isLoading])
+
+  useEffect(() => {
+    if (!isLoading) return
+    setLoadingHintIndex(0)
+    const id = window.setInterval(() => {
+      setLoadingHintIndex((i) => (i + 1) % LOADING_HINTS.length)
+    }, 4200)
+    return () => window.clearInterval(id)
+  }, [isLoading])
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
@@ -239,12 +256,9 @@ export function AIChatbot() {
             <Bot className="h-3 w-3 mr-1" />
             AI-Powered Analysis
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-bold text-foreground mb-2">
+          <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
             Autonomous Business Transformation Copilot
           </h2>
-          <p className="text-muted-foreground text-lg">
-            AI-Powered Business Transformation Workflow
-          </p>
         </motion.div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-10 lg:items-stretch">
@@ -256,14 +270,35 @@ export function AIChatbot() {
             transition={{ delay: 0.05 }}
             className="flex items-center justify-center lg:col-span-1"
           >
-            <div className="relative aspect-[4/5] w-full max-w-sm mx-auto max-h-[min(70vh,28rem)] lg:max-w-none lg:max-h-none lg:aspect-auto lg:min-h-[22rem] lg:h-full overflow-hidden bg-transparent">
-              <Image
-                src="/chat.png"
-                alt="Transformation Copilot chat preview"
-                fill
-                className="object-contain object-center p-3 sm:p-4"
-                sizes="(max-width: 1024px) 90vw, 33vw"
-              />
+            <div className="relative mx-auto w-full max-w-sm max-h-[min(70vh,28rem)] lg:mx-0 lg:max-w-none lg:max-h-none lg:h-full lg:min-h-[22rem]">
+              <div className="pointer-events-none absolute -inset-3 rounded-3xl bg-gradient-to-tr from-primary/20 via-transparent to-primary/10 blur-2xl" />
+              <motion.div
+                className="relative aspect-[4/5] w-full overflow-hidden bg-transparent lg:aspect-auto lg:h-full lg:min-h-[22rem]"
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <motion.div
+                  className="relative h-full w-full origin-center will-change-transform"
+                  animate={{
+                    scale: [1, 1.07, 1.03, 1.08, 1],
+                    x: [0, "3%", "-2%", "2%", 0],
+                    y: [0, "-2%", "1.5%", "-1%", 0],
+                  }}
+                  transition={{
+                    duration: 18,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                >
+                  <Image
+                    src="/chat.png"
+                    alt="Transformation Copilot chat preview"
+                    fill
+                    className="scale-[1.02] object-contain object-center p-3 sm:p-4"
+                    sizes="(max-width: 1024px) 90vw, 33vw"
+                  />
+                </motion.div>
+              </motion.div>
             </div>
           </motion.div>
 
@@ -384,13 +419,69 @@ export function AIChatbot() {
                     className="flex justify-start"
                   >
                     <div className="flex gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-secondary flex items-center justify-center">
-                        <Bot className="h-4 w-4 text-foreground" />
-                      </div>
-                      <div className="bg-secondary/50 border border-border rounded-2xl px-4 py-3">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          <span className="text-sm">Analyzing your business challenge...</span>
+                      <motion.div
+                        className="relative flex h-8 w-8 shrink-0 items-center justify-center"
+                        animate={{ scale: [1, 1.06, 1] }}
+                        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+                      >
+                        <span
+                          className="pointer-events-none absolute inset-0 rounded-lg bg-primary/25 blur-[6px]"
+                          aria-hidden
+                        />
+                        <div className="relative flex h-full w-full items-center justify-center rounded-lg border border-primary/25 bg-secondary">
+                          <Bot className="h-4 w-4 text-primary" aria-hidden />
+                        </div>
+                      </motion.div>
+                      <div className="min-w-0 max-w-[min(100%,22rem)] rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.07] via-secondary/45 to-secondary/30 px-4 py-3.5 shadow-sm">
+                        <div className="flex gap-2.5">
+                          <Loader2
+                            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary"
+                            aria-hidden
+                          />
+                          <div className="min-w-0 flex-1 space-y-2.5">
+                            <p className="text-sm font-medium leading-snug text-foreground">
+                              Analyzing your business challenge
+                              <span className="inline-flex translate-y-px gap-0.5 pl-0.5" aria-hidden>
+                                {[0, 1, 2].map((i) => (
+                                  <motion.span
+                                    key={i}
+                                    className="inline-block h-1 w-1 rounded-full bg-primary"
+                                    animate={{ opacity: [0.25, 1, 0.25], y: [0, -3, 0] }}
+                                    transition={{
+                                      duration: 1,
+                                      repeat: Infinity,
+                                      delay: i * 0.18,
+                                      ease: "easeInOut",
+                                    }}
+                                  />
+                                ))}
+                              </span>
+                            </p>
+                            <div className="h-1 w-full overflow-hidden rounded-full bg-muted/90">
+                              <motion.div
+                                className="h-full w-[42%] rounded-full bg-gradient-to-r from-transparent via-primary/80 to-transparent"
+                                initial={false}
+                                animate={{ x: ["-30%", "220%"] }}
+                                transition={{
+                                  duration: 1.65,
+                                  repeat: Infinity,
+                                  ease: "linear",
+                                }}
+                              />
+                            </div>
+                            <AnimatePresence mode="wait">
+                              <motion.p
+                                key={loadingHintIndex}
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                transition={{ duration: 0.28 }}
+                                className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs"
+                              >
+                                {LOADING_HINTS[loadingHintIndex]}
+                              </motion.p>
+                            </AnimatePresence>
+                          </div>
                         </div>
                       </div>
                     </div>

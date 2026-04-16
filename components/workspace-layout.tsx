@@ -1,7 +1,6 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { BusinessInputPanel } from "@/components/business-input-panel"
 import { AgentWorkflowTimeline } from "@/components/agent-workflow-timeline"
 import { ExecutiveOutputPanel } from "@/components/executive-output-panel"
 
@@ -16,18 +15,10 @@ export function WorkspaceLayout() {
           transition={{ duration: 0.5 }}
           className="grid grid-cols-1 lg:grid-cols-12 gap-6"
         >
-          {/* Left Column - Business Input */}
-          <div className="lg:col-span-3">
-            <BusinessInputPanel />
-          </div>
-          
-          {/* Center Column - Agent Workflow */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-7">
             <AgentWorkflowTimeline />
           </div>
-          
-          {/* Right Column - Executive Output */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-5">
             <ExecutiveOutputPanel />
           </div>
         </motion.div>
