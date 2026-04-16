@@ -23,6 +23,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { DeloitteListeningPortal } from "@/components/deloitte-listening-portal"
+import { inferChatWebhookContext } from "@/lib/infer-webhook-context"
+import type { ParsedResponse } from "@/lib/copilot-response-types"
+import {
+  loadCopilotSession,
+  messagesToSerializable,
+  saveCopilotSession,
+} from "@/lib/copilot-local-session"
+import { useWorkflowWorkspace } from "@/components/workflow-workspace-context"
 
 interface Message {
   id: string
@@ -31,14 +39,6 @@ interface Message {
   timestamp: Date
   isError?: boolean
   parsedResponse?: ParsedResponse | null
-}
-
-interface ParsedResponse {
-  executiveSummary?: string
-  keyRecommendations?: string[]
-  expectedBusinessValue?: string
-  nextSteps?: string[]
-  [key: string]: unknown
 }
 
 const SAMPLE_PROMPTS = [
@@ -142,13 +142,44 @@ function ResponseCard({ response }: { response: ParsedResponse }) {
 }
 
 export function AIChatbot() {
+  const {
+    onAssistantReply,
+    confirmContinue,
+    restartWorkspace,
+    pendingReplyId,
+    sessionPhase,
+    notifyCopilotLoading,
+  } = useWorkflowWorkspace()
   const [messages, setMessages] = useState<Message[]>([])
+  const [messagesStorageHydrated, setMessagesStorageHydrated] = useState(false)
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [listeningOpen, setListeningOpen] = useState(false)
   const [loadingHintIndex, setLoadingHintIndex] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const snap = loadCopilotSession()
+    if (snap?.messages?.length) {
+      setMessages(
+        snap.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          timestamp: new Date(m.timestamp),
+          isError: m.isError,
+          parsedResponse: m.parsedResponse ?? undefined,
+        }))
+      )
+    }
+    setMessagesStorageHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!messagesStorageHydrated) return
+    saveCopilotSession({ messages: messagesToSerializable(messages) })
+  }, [messagesStorageHydrated, messages])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -165,6 +196,10 @@ export function AIChatbot() {
     return () => window.clearInterval(id)
   }, [isLoading])
 
+  useEffect(() => {
+    notifyCopilotLoading(isLoading)
+  }, [isLoading, notifyCopilotLoading])
+
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
 
@@ -180,6 +215,7 @@ export function AIChatbot() {
     setIsLoading(true)
 
     try {
+      const inferred = inferChatWebhookContext(userMessage.content)
       const response = await fetch(CHAT_WEBHOOK_URL, {
         method: "POST",
         headers: {
@@ -187,12 +223,12 @@ export function AIChatbot() {
         },
         body: JSON.stringify({
           businessChallenge: userMessage.content,
-          industry: "Retail",
-          businessFunction: "Operations",
-          objective: "Cost reduction",
-          urgency: "High",
-          chosenPlatform: "n8n",
-          chosenLLM: "OpenAI",
+          industry: inferred.industry,
+          businessFunction: inferred.businessFunction,
+          objective: inferred.objective,
+          urgency: inferred.urgency,
+          chosenPlatform: inferred.chosenPlatform,
+          chosenLLM: inferred.chosenLLM,
         }),
       })
 
@@ -202,7 +238,10 @@ export function AIChatbot() {
 
       const data = await response.json()
       const responseContent = typeof data === "string" ? data : JSON.stringify(data)
-      const parsedResponse = typeof data === "object" ? data : parseResponse(responseContent)
+      const parsedResponse =
+        typeof data === "object" && data !== null && !Array.isArray(data)
+          ? (data as ParsedResponse)
+          : parseResponse(responseContent)
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
@@ -212,7 +251,12 @@ export function AIChatbot() {
         parsedResponse,
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      setMessages((prev) => [...prev, assistantMessage])
+      onAssistantReply(
+        assistantMessage.id,
+        parsedResponse ?? null,
+        assistantMessage.content
+      )
     } catch (error) {
       const errorMessage: Message = {
         id: crypto.randomUUID(),
@@ -229,6 +273,7 @@ export function AIChatbot() {
 
   const clearChat = () => {
     setMessages([])
+    restartWorkspace()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -406,6 +451,33 @@ export function AIChatbot() {
                               minute: "2-digit",
                             })}
                           </p>
+                          {message.role === "assistant" &&
+                            !message.isError &&
+                            sessionPhase === "awaiting_continue" &&
+                            pendingReplyId === message.id && (
+                              <div className="mt-3 border-t border-border/60 pt-3">
+                                <p className="mb-2 text-xs text-muted-foreground">
+                                  Sync the workspace with this reply, or start over.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                                    onClick={() => {
+                                      restartWorkspace()
+                                      setMessages([])
+                                    }}
+                                  >
+                                    Restart
+                                  </Button>
+                                  <Button type="button" size="sm" onClick={confirmContinue}>
+                                    Continue
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                         </div>
                       </div>
                     </motion.div>

@@ -15,13 +15,6 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "cdn.simpleicons.org",
-        pathname: "/**",
-      },
-    ],
   },
 }
 

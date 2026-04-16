@@ -7,6 +7,7 @@ import { WorkspaceLayout } from "@/components/workspace-layout"
 import { Footer } from "@/components/footer"
 import { IntegrationsSection } from "@/components/integrations-section"
 import { PageBootOverlay } from "@/components/page-boot-overlay"
+import { WorkflowWorkspaceProvider } from "@/components/workflow-workspace-context"
 
 export default function Home() {
   return (
@@ -14,10 +15,12 @@ export default function Home() {
       <PageBootOverlay />
       <Navbar />
       <main>
-        <HeroSection />
-        <AIChatbot />
-        <WorkspaceLayout />
-        <IntegrationsSection />
+        <WorkflowWorkspaceProvider>
+          <HeroSection />
+          <AIChatbot />
+          <WorkspaceLayout />
+          <IntegrationsSection />
+        </WorkflowWorkspaceProvider>
       </main>
       <Footer />
     </div>

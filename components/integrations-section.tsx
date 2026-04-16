@@ -1,33 +1,25 @@
 "use client"
 
-import Image from "next/image"
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
 
-/** Brand marks via Simple Icons CDN (https://simpleicons.org — MIT). */
 const INTEGRATIONS = [
   {
     name: "n8n",
     subtitle: "Workflow automation",
     description: "Webhooks, orchestration, and glue between your data and the copilot.",
-    logoSrc: "https://cdn.simpleicons.org/n8n/EA4B71",
-    logoAlt: "n8n",
     accent: "from-emerald-500/20 to-teal-500/5 border-emerald-500/25",
   },
   {
     name: "OpenAI",
     subtitle: "AI platform",
     description: "Models for analysis, summarisation, and structured transformation outputs.",
-    logoSrc: "https://cdn.simpleicons.org/openai/412991",
-    logoAlt: "OpenAI",
     accent: "from-primary/15 to-transparent border-primary/25",
   },
   {
     name: "LLM",
     subtitle: "Large language models",
     description: "Reasoning for chat and voice; Hugging Face stands in for the broader open-model tooling around LLMs.",
-    logoSrc: "https://cdn.simpleicons.org/huggingface/FFD21E",
-    logoAlt: "Hugging Face",
     accent: "from-violet-500/15 to-transparent border-violet-500/25",
   },
 ] as const
@@ -64,16 +56,6 @@ export function IntegrationsSection() {
               transition={{ duration: 0.45, delay: i * 0.08 }}
               className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br p-6 shadow-sm ${item.accent}`}
             >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-border/60 bg-background/90 p-2">
-                <Image
-                  src={item.logoSrc}
-                  alt={item.logoAlt}
-                  width={36}
-                  height={36}
-                  className="h-8 w-8 object-contain"
-                  unoptimized
-                />
-              </div>
               <h3 className="text-lg font-semibold text-foreground">{item.name}</h3>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {item.subtitle}
