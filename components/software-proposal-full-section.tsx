@@ -220,6 +220,7 @@ type SoftwareProposalFullSectionProps = {
 }
 
 export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSectionProps) {
+  const { setPlanningBoard } = useSoftwareProposal()
   const [planningModalOpen, setPlanningModalOpen] = useState(false)
   const [planningSubmitLoading, setPlanningSubmitLoading] = useState(false)
   const [planningSubmitError, setPlanningSubmitError] = useState<string | null>(null)
