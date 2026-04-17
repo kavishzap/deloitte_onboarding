@@ -149,6 +149,37 @@ export function IntegrationsSection() {
               day-to-day execution without losing context.
             </p>
           </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.24 }}
+            className="mx-auto mt-14 max-w-5xl"
+          >
+            <h3 className="text-center text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Proposal code agent
+            </h3>
+            <p className="mx-auto mt-2 max-w-2xl text-center text-xs text-muted-foreground sm:text-sm">
+              Follows the planning path — webhook-triggered agent with model, memory, tools, and a structured proposal
+              return.
+            </p>
+            <div className="relative mt-6 overflow-hidden rounded-2xl border border-border/50 bg-card shadow-lg shadow-black/5">
+              <Image
+                src="/workflow4.png"
+                alt="n8n workflow: Webhook, code Agent with OpenAI and SerpAPI, Return Proposal"
+                width={1600}
+                height={900}
+                className="h-auto w-full object-contain"
+                sizes="(max-width: 1024px) 100vw, 1024px"
+              />
+            </div>
+            <p className="mx-auto mt-5 max-w-3xl text-center text-sm leading-relaxed text-muted-foreground sm:text-base">
+              This canvas shows how a single POST kicks off the code agent: the OpenAI chat model carries the reasoning,
+              SerpAPI can enrich answers with live web context, and the flow ends in a clean &quot;Return Proposal&quot;
+              payload — the same pattern the app proxies through Next.js to your n8n instance.
+            </p>
+          </motion.div>
         </motion.div>
       </div>
     </section>

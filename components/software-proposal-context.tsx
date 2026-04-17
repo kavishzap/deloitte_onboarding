@@ -16,6 +16,9 @@ type SoftwareProposalContextValue = {
   setProposalResult: (value: unknown | null) => void
   planningBoard: KanbanBoardPayload | null
   setPlanningBoard: (value: KanbanBoardPayload | null) => void
+  /** HTML fragment from the “repository / HTML” n8n agent, shown under the Kanban. */
+  repositoryHtml: string | null
+  setRepositoryHtml: (value: string | null) => void
 }
 
 const SoftwareProposalContext = createContext<SoftwareProposalContextValue | null>(null)
@@ -24,16 +27,19 @@ export function SoftwareProposalProvider({ children }: { children: ReactNode }) 
   const { registerSessionResetHandler } = useWorkflowWorkspace()
   const [proposalResult, setProposalResult] = useState<unknown | null>(null)
   const [planningBoard, setPlanningBoard] = useState<KanbanBoardPayload | null>(null)
+  const [repositoryHtml, setRepositoryHtml] = useState<string | null>(null)
 
   useEffect(() => {
     return registerSessionResetHandler(() => {
       setProposalResult(null)
       setPlanningBoard(null)
+      setRepositoryHtml(null)
     })
   }, [registerSessionResetHandler])
 
   useEffect(() => {
     setPlanningBoard(null)
+    setRepositoryHtml(null)
   }, [proposalResult])
 
   const value = useMemo(
@@ -42,8 +48,10 @@ export function SoftwareProposalProvider({ children }: { children: ReactNode }) 
       setProposalResult,
       planningBoard,
       setPlanningBoard,
+      repositoryHtml,
+      setRepositoryHtml,
     }),
-    [proposalResult, planningBoard]
+    [proposalResult, planningBoard, repositoryHtml]
   )
 
   return <SoftwareProposalContext.Provider value={value}>{children}</SoftwareProposalContext.Provider>

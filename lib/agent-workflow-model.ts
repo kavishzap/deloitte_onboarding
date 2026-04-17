@@ -10,6 +10,8 @@ export interface Agent {
   description: string
   status: AgentStatus
   progress: number
+  /** Copilot loading sim only: lines shown while this agent is “running”, cycled in the UI. */
+  thinkingMessages?: string[]
 }
 
 const STEP_BLUEPRINTS: Omit<Agent, "status" | "progress">[] = [
@@ -51,6 +53,40 @@ const STEP_BLUEPRINTS: Omit<Agent, "status" | "progress">[] = [
   },
 ]
 
+/** Simulated “what the AI is doing” lines while the loading animation marks this agent as running. */
+const RUNNING_THINKING_BY_ID: Record<string, string[]> = {
+  intake: [
+    "Reading your message and pulling out the core ask…",
+    "Separating goals, constraints, and stakeholders from the raw brief…",
+    "Turning the challenge into a structured problem statement…",
+  ],
+  planner: [
+    "Breaking the work into phases and checkpoints…",
+    "Choosing what to validate first vs. what can follow…",
+    "Drafting an execution plan that matches your scope…",
+  ],
+  consultant: [
+    "Scanning for root causes, not just symptoms…",
+    "Mapping risks, gaps, and upside you might have missed…",
+    "Stress-testing assumptions before we commit to a direction…",
+  ],
+  architect: [
+    "Matching tools and automation to your operating model…",
+    "Balancing build vs. buy and where humans stay in the loop…",
+    "Sketching a solution shape that scales with volume…",
+  ],
+  impact: [
+    "Translating outcomes into time, cost, and revenue signals…",
+    "Sizing value conservatively so leadership can trust the range…",
+    "Linking recommendations to measurable KPI movement…",
+  ],
+  summary: [
+    "Condensing the thread into an executive-ready narrative…",
+    "Sharpening recommendations so they read as decisions, not essays…",
+    "Polishing tone and structure for your leadership audience…",
+  ],
+}
+
 export function getWaitingAgents(): Agent[] {
   return STEP_BLUEPRINTS.map((b) => ({
     ...b,
@@ -79,7 +115,14 @@ export function buildLoadingSimulationAgents(activeStep: number): Agent[] {
       return { ...b, status: "complete" as const, progress: 100 }
     }
     if (i === capped) {
-      return { ...b, status: "running" as const, progress: 72 }
+      const thinkingMessages = RUNNING_THINKING_BY_ID[b.id] ?? [b.description]
+      return {
+        ...b,
+        status: "running" as const,
+        /** UI animates upward while this step is active; keeps room before 100% until the real response lands. */
+        progress: 18,
+        thinkingMessages,
+      }
     }
     return { ...b, status: "waiting" as const, progress: 0 }
   })

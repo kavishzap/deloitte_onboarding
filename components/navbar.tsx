@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/badge"
-import { Cpu, Workflow } from "lucide-react"
+import { Cpu, Sparkles, Workflow } from "lucide-react"
 import { ThemeToggle } from "@/components/theme-toggle"
 
 export function Navbar() {
@@ -25,7 +25,7 @@ export function Navbar() {
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <Badge variant="outline" className="border-primary/30 bg-primary/5 text-primary text-xs font-medium px-3 py-1">
             <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-primary animate-pulse inline-block" />
             Hackathon Prototype
@@ -33,6 +33,10 @@ export function Navbar() {
           <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 text-xs font-medium px-3 py-1">
             <Workflow className="mr-1.5 h-3 w-3" />
             n8n Connected
+          </Badge>
+          <Badge variant="outline" className="border-violet-500/30 bg-violet-500/5 text-violet-700 dark:text-violet-300 text-xs font-medium px-3 py-1">
+            <Sparkles className="mr-1.5 h-3 w-3" />
+            OpenAI Connected
           </Badge>
           <ThemeToggle />
         </div>

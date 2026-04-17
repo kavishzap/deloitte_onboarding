@@ -30,7 +30,7 @@ import {
   messagesToSerializable,
   saveCopilotSession,
 } from "@/lib/copilot-local-session"
-import { useWorkflowWorkspace } from "@/components/workflow-workspace-context"
+import { scrollToAgentWorkflow, useWorkflowWorkspace } from "@/components/workflow-workspace-context"
 
 interface Message {
   id: string
@@ -41,11 +41,7 @@ interface Message {
   parsedResponse?: ParsedResponse | null
 }
 
-const SAMPLE_PROMPTS = [
-  "A retail client wants to reduce operational cost by 20% and improve inventory management.",
-  "A bank wants to automate compliance reporting.",
-  "A company wants to improve customer service using AI.",
-]
+const SAMPLE_PROMPTS = ["A company wants to improve customer service using AI."]
 
 const LOADING_HINTS = [
   "Running your brief through the n8n workflow — complex answers can take a little longer.",
@@ -218,6 +214,9 @@ export function AIChatbot() {
     setMessages(prev => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
+    requestAnimationFrame(() => {
+      scrollToAgentWorkflow()
+    })
 
     try {
       const inferred = inferChatWebhookContext(userMessage.content)

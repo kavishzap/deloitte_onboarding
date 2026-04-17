@@ -1,88 +1,99 @@
 "use client"
 
-import { LayoutGrid, User } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { useCallback, useState } from "react"
+import { AlertCircle, FolderGit2, LayoutGrid, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import { KanbanDraggableColumns } from "@/components/kanban-draggable-columns"
+import { useSoftwareProposal } from "@/components/software-proposal-context"
+import type { KanbanBoardPayload } from "@/lib/kanban-planning-types"
 import { cn } from "@/lib/utils"
-import type { KanbanBoardPayload, KanbanTask } from "@/lib/kanban-planning-types"
+import { buildProjectSummaryText } from "@/lib/project-html-agent"
+import { parseStructuredProposal } from "@/lib/software-proposal-types"
+import { KanbanCompletionPie } from "@/components/kanban-completion-pie"
 
 export const PLANNING_KANBAN_SECTION_ID = "planning-kanban-section"
+export const REPOSITORY_HTML_PREVIEW_ID = "repository-html-preview"
 
-function priorityClass(priority?: string) {
-  const p = (priority ?? "").toLowerCase()
-  if (p === "high")
-    return "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-300"
-  if (p === "medium")
-    return "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200"
-  if (p === "low") return "border-border bg-muted text-muted-foreground"
-  return "border-border/60 bg-secondary/60 text-secondary-foreground"
-}
-
-function TaskCard({ task }: { task: KanbanTask }) {
-  return (
-    <article
-      className="rounded-xl border border-border/60 bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
-      data-task-id={task.taskId}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <h4 className="text-sm font-semibold leading-snug text-foreground">{task.title}</h4>
-        {task.priority ? (
-          <Badge variant="outline" className={cn("shrink-0 text-[10px] font-medium uppercase", priorityClass(task.priority))}>
-            {task.priority}
-          </Badge>
-        ) : null}
-      </div>
-      {task.description ? (
-        <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{task.description}</p>
-      ) : null}
-      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
-        {task.epic ? <span className="rounded bg-secondary px-1.5 py-0.5">{task.epic}</span> : null}
-        {task.module ? <span className="rounded bg-secondary px-1.5 py-0.5">{task.module}</span> : null}
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2 text-[11px] text-muted-foreground">
-        {task.assignedEmployeeName ? (
-          <span className="flex items-center gap-1 font-medium text-foreground/90">
-            <User className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
-            {task.assignedEmployeeName}
-            {task.assignedRole ? <span className="font-normal text-muted-foreground">· {task.assignedRole}</span> : null}
-          </span>
-        ) : null}
-        {task.storyPoints != null ? (
-          <span className="rounded-full border border-border/60 px-2 py-0.5">{task.storyPoints} pts</span>
-        ) : null}
-        {task.estimatedHours != null ? <span>{task.estimatedHours}h</span> : null}
-      </div>
-      {task.dependencies && task.dependencies.length > 0 ? (
-        <p className="mt-1.5 text-[10px] text-muted-foreground">
-          Depends on: {task.dependencies.join(", ")}
-        </p>
-      ) : null}
-      {task.tags && task.tags.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {task.tags.map((tag) => (
-            <span key={tag} className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-              {tag}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </article>
-  )
-}
+const PROJECT_HTML_API = "/api/n8n/project-html"
 
 type PlanningKanbanBoardProps = {
   board: KanbanBoardPayload
 }
 
 export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
-  const tasksByColumn = new Map<string, KanbanTask[]>()
-  for (const col of board.columns) {
-    tasksByColumn.set(
-      col.columnId,
-      board.tasks.filter((t) => t.columnId === col.columnId)
-    )
-  }
+  const { proposalResult, repositoryHtml, setRepositoryHtml, setPlanningBoard } = useSoftwareProposal()
+  const [repoLoading, setRepoLoading] = useState(false)
+  const [repoError, setRepoError] = useState<string | null>(null)
+
+  const generateRepositoryPreview = useCallback(async () => {
+    setRepoError(null)
+    setRepoLoading(true)
+    try {
+      const parsed = parseStructuredProposal(proposalResult)
+      const projectSummary = buildProjectSummaryText(parsed, board)
+      const res = await fetch(PROJECT_HTML_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectSummary,
+          proposalResponse: proposalResult,
+          planningBoard: board,
+        }),
+      })
+      const responseText = await res.text()
+      let data = {} as {
+        html?: string
+        error?: string
+        message?: string
+        hint?: string
+        detail?: unknown
+      }
+      try {
+        if (responseText.trim()) {
+          data = JSON.parse(responseText) as typeof data
+        }
+      } catch {
+        if (!res.ok) {
+          throw new Error(responseText.trim().slice(0, 240) || `Upstream returned ${res.status}`)
+        }
+        throw new Error("Invalid JSON from HTML agent")
+      }
+      if (!res.ok) {
+        const fromN8n =
+          typeof data.message === "string"
+            ? data.message
+            : typeof data.error === "string"
+              ? data.error
+              : null
+        const msg = fromN8n ?? `Upstream returned ${res.status}`
+        throw new Error(typeof data.hint === "string" ? `${msg} ${data.hint}` : msg)
+      }
+      const html = typeof data.html === "string" ? data.html : ""
+      if (!html.trim()) {
+        throw new Error("Empty HTML in response")
+      }
+      setRepositoryHtml(html)
+      toast.success("Repository preview ready", {
+        description: "HTML from your n8n agent is shown below.",
+      })
+      requestAnimationFrame(() => {
+        document.getElementById(REPOSITORY_HTML_PREVIEW_ID)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        })
+      })
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Could not generate HTML"
+      setRepoError(message)
+      toast.error("HTML agent failed", { description: message })
+    } finally {
+      setRepoLoading(false)
+    }
+  }, [board, proposalResult, setRepositoryHtml])
 
   return (
     <section
@@ -105,31 +116,9 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
           ) : null}
         </header>
 
-        <div className="-mx-1 overflow-x-auto px-1 pb-2">
-          <div className="flex w-max min-w-full gap-4 pb-4">
-            {board.columns.map((col) => {
-              const colTasks = tasksByColumn.get(col.columnId) ?? []
-              return (
-                <div
-                  key={col.columnId}
-                  className="flex w-[min(100vw-2rem,20rem)] shrink-0 flex-col rounded-2xl border border-border/50 bg-muted/30 shadow-inner sm:w-[22rem]"
-                >
-                  <div className="border-b border-border/40 bg-muted/50 px-3 py-3 sm:px-4">
-                    <h3 className="text-sm font-semibold text-foreground">{col.title}</h3>
-                    <p className="text-xs text-muted-foreground">{colTasks.length} tasks</p>
-                  </div>
-                  <div className="flex max-h-[min(70vh,36rem)] flex-col gap-3 overflow-y-auto p-3 sm:p-4">
-                    {colTasks.length === 0 ? (
-                      <p className="py-6 text-center text-xs text-muted-foreground">No tasks</p>
-                    ) : (
-                      colTasks.map((task) => <TaskCard key={task.taskId} task={task} />)
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        <KanbanDraggableColumns board={board} onBoardReorder={setPlanningBoard} />
+
+        <KanbanCompletionPie board={board} />
 
         {board.teamAllocation.length > 0 ? (
           <>
@@ -163,6 +152,67 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
             </div>
           </>
         ) : null}
+
+        <div className="mt-12 flex justify-center border-t border-border/40 pt-10">
+          <Button
+            type="button"
+            size="lg"
+            className="min-w-[min(100%,20rem)] gap-2 px-8"
+            disabled={repoLoading}
+            onClick={() => void generateRepositoryPreview()}
+          >
+            {repoLoading ? (
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
+            ) : (
+              <FolderGit2 className="h-5 w-5 shrink-0" aria-hidden />
+            )}
+            Generate Code repository
+          </Button>
+        </div>
+
+        {(repoLoading || repoError || repositoryHtml) && (
+          <div
+            id={REPOSITORY_HTML_PREVIEW_ID}
+            className="scroll-mt-24 mt-10 border-t border-border/40 pt-10"
+          >
+            <h3 className="mb-4 text-center text-sm font-semibold uppercase tracking-wide text-foreground">
+              Repository preview (HTML agent)
+            </h3>
+            {repoLoading ? (
+              <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" aria-hidden />
+                Generating base code repository preview…
+              </p>
+            ) : null}
+            {repoError && !repoLoading ? (
+              <Alert variant="destructive" className="mx-auto max-w-2xl">
+                <AlertCircle className="h-4 w-4" aria-hidden />
+                <AlertTitle>Could not load HTML</AlertTitle>
+                <AlertDescription>{repoError}</AlertDescription>
+              </Alert>
+            ) : null}
+            {repositoryHtml && !repoLoading ? (
+              <Card className="border-border/50 bg-card shadow-inner">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-medium text-foreground">Rendered output</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Generated HTML is injected below. Trusted agent output only — sanitize before production.
+                  </p>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div
+                    className={cn(
+                      "repo-html-preview max-h-[min(80vh,48rem)] overflow-auto rounded-xl border border-border/40 bg-muted/15 p-4 sm:p-6",
+                      "[&_img]:max-w-full [&_img]:h-auto [&_table]:w-full [&_table]:text-sm",
+                      "[&_a]:text-primary [&_a]:underline-offset-2"
+                    )}
+                    dangerouslySetInnerHTML={{ __html: repositoryHtml }}
+                  />
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+        )}
       </div>
     </section>
   )

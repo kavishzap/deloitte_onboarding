@@ -1,6 +1,7 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { useEffect, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -27,6 +28,44 @@ function StatusBadge({ status }: { status: AgentStatus }) {
 }
 
 function AgentCard({ agent, index }: { agent: Agent; index: number }) {
+  const [displayProgress, setDisplayProgress] = useState(agent.progress)
+  const [thinkingIndex, setThinkingIndex] = useState(0)
+
+  useEffect(() => {
+    if (agent.status !== "running") {
+      setDisplayProgress(agent.progress)
+      return
+    }
+    setDisplayProgress(agent.progress)
+    const tick = window.setInterval(() => {
+      setDisplayProgress((p) => {
+        const cap = 92
+        if (p >= cap) return p
+        return Math.min(cap, p + 3 + Math.floor(Math.random() * 4))
+      })
+    }, 380)
+    return () => window.clearInterval(tick)
+  }, [agent.id, agent.status, agent.progress])
+
+  useEffect(() => {
+    if (agent.status !== "running" || !agent.thinkingMessages?.length) {
+      setThinkingIndex(0)
+      return
+    }
+    setThinkingIndex(0)
+    const id = window.setInterval(() => {
+      setThinkingIndex((i) => (i + 1) % agent.thinkingMessages!.length)
+    }, 2600)
+    return () => window.clearInterval(id)
+  }, [agent.id, agent.status, agent.thinkingMessages])
+
+  const descriptionText =
+    agent.status === "running" && agent.thinkingMessages?.length
+      ? agent.thinkingMessages[thinkingIndex % agent.thinkingMessages.length]
+      : agent.description
+
+  const progressValue = agent.status === "running" ? displayProgress : agent.progress
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -20 }}
@@ -74,12 +113,23 @@ function AgentCard({ agent, index }: { agent: Agent; index: number }) {
               <h4 className="truncate text-sm font-medium text-foreground">{agent.title}</h4>
               <StatusBadge status={agent.status} />
             </div>
-            <p className="mb-2 text-xs text-muted-foreground">{agent.description}</p>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={`${agent.id}-${descriptionText}`}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.22 }}
+                className="mb-2 text-xs text-muted-foreground"
+              >
+                {descriptionText}
+              </motion.p>
+            </AnimatePresence>
 
             {agent.status !== "waiting" && (
               <div className="flex items-center gap-2">
-                <Progress value={agent.progress} className="h-1.5 flex-1 bg-secondary" />
-                <span className="text-xs font-medium text-muted-foreground">{agent.progress}%</span>
+                <Progress value={progressValue} className="h-1.5 flex-1 bg-secondary transition-all duration-500 ease-out" />
+                <span className="text-xs font-medium text-muted-foreground">{Math.round(progressValue)}%</span>
               </div>
             )}
           </div>

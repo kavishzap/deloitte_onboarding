@@ -45,7 +45,8 @@ const WorkflowWorkspaceContext = createContext<WorkflowWorkspaceValue | null>(nu
 
 const WORKFLOW_ANCHOR_ID = "agent-workflow"
 
-const LOADING_STEP_MS = 720
+/** Time on each workflow step while the copilot request is in flight — slower so progress feels deliberate. */
+const LOADING_STEP_MS = 3400
 /** Max step while the copilot request is in flight — hold on summary agent "running" until the response returns (no fake "all complete"). */
 const LOADING_SIM_MAX_STEP = 5
 
