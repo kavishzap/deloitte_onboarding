@@ -40,14 +40,10 @@ export function WorkspaceLayout() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="grid grid-cols-1 gap-6 lg:grid-cols-12"
+          className="flex flex-col gap-6"
         >
-          <div className="lg:col-span-7">
-            <AgentWorkflowTimeline />
-          </div>
-          <div className="lg:col-span-5">
-            <ExecutiveOutputPanel />
-          </div>
+          <AgentWorkflowTimeline />
+          <ExecutiveOutputPanel />
         </motion.div>
       </div>
 

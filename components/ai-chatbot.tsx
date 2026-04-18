@@ -138,15 +138,8 @@ function ResponseCard({ response }: { response: ParsedResponse }) {
 }
 
 export function AIChatbot() {
-  const {
-    onAssistantReply,
-    confirmContinue,
-    restartWorkspace,
-    registerSessionResetHandler,
-    pendingReplyId,
-    sessionPhase,
-    notifyCopilotLoading,
-  } = useWorkflowWorkspace()
+  const { onAssistantReply, restartWorkspace, registerSessionResetHandler, notifyCopilotLoading } =
+    useWorkflowWorkspace()
   const [messages, setMessages] = useState<Message[]>([])
   const [messagesStorageHydrated, setMessagesStorageHydrated] = useState(false)
   const [input, setInput] = useState("")
@@ -454,32 +447,6 @@ export function AIChatbot() {
                               minute: "2-digit",
                             })}
                           </p>
-                          {message.role === "assistant" &&
-                            !message.isError &&
-                            sessionPhase === "awaiting_continue" &&
-                            pendingReplyId === message.id && (
-                              <div className="mt-3 border-t border-border/60 pt-3">
-                                <p className="mb-2 text-xs text-muted-foreground">
-                                  Sync the workspace with this reply, or start over.
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
-                                    onClick={() => {
-                                      restartWorkspace()
-                                    }}
-                                  >
-                                    Restart
-                                  </Button>
-                                  <Button type="button" size="sm" onClick={confirmContinue}>
-                                    Continue
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
                         </div>
                       </div>
                     </motion.div>

@@ -150,3 +150,39 @@ export function parseKanbanBoardPayload(data: unknown): KanbanBoardPayload | nul
   }
   return null
 }
+
+function isReviewColumn(column: KanbanColumn): boolean {
+  const title = column.title.trim().toLowerCase()
+  const id = column.columnId.trim().toLowerCase()
+  return title === "review" || id === "review" || id.endsWith("-review") || id.startsWith("review-")
+}
+
+/**
+ * Drops the Review lane from the board UI: tasks in that column move to the
+ * immediately preceding column by `order` (typically In Progress), or the
+ * first remaining column if Review was first.
+ */
+export function removeReviewColumnFromBoard(board: KanbanBoardPayload): KanbanBoardPayload {
+  const sorted = [...board.columns].sort((a, b) => a.order - b.order)
+  const reviewIndex = sorted.findIndex(isReviewColumn)
+  if (reviewIndex < 0) return board
+
+  const reviewCol = sorted[reviewIndex]!
+  const remaining = sorted.filter((_, i) => i !== reviewIndex)
+  if (remaining.length === 0) return board
+
+  const fallbackColumnId =
+    reviewIndex > 0 ? sorted[reviewIndex - 1]!.columnId : remaining[0]!.columnId
+
+  const nextTasks = board.tasks.map((t) =>
+    t.columnId === reviewCol.columnId ? { ...t, columnId: fallbackColumnId } : t
+  )
+
+  const nextColumns = remaining.map((c, i) => ({ ...c, order: i }))
+
+  return {
+    ...board,
+    columns: nextColumns,
+    tasks: nextTasks,
+  }
+}

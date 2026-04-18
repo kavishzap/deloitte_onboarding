@@ -63,9 +63,9 @@ export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
 
   return (
     <Card className="mt-10 border-border/50 bg-card shadow-lg shadow-black/5">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 text-center">
         <CardTitle className="text-lg font-semibold tracking-tight">Board completion</CardTitle>
-        <CardDescription>
+        <CardDescription className="mx-auto max-w-md text-center">
           {stats.totalTasks === 0
             ? "No tasks on this board yet."
             : `“Completed” counts tasks in the “${doneTitle}” column (${stats.completedTasks} of ${stats.totalTasks} tasks).`}
@@ -108,7 +108,7 @@ export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
               </div>
             </div>
 
-            <ul className="flex w-full max-w-md flex-col gap-2 rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-sm">
+            <ul className="mx-auto flex w-full max-w-md flex-col gap-2 rounded-lg border border-border/50 bg-muted/20 px-4 py-3 text-sm">
               <li className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <span
@@ -145,9 +145,9 @@ export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
           </div>
         )}
 
-        <Button type="button" className="w-full max-w-sm sm:w-auto" onClick={handleNotify}>
+        <Button type="button" className="mx-auto w-full max-w-sm sm:w-auto" onClick={handleNotify}>
           <Bell className="mr-2 h-4 w-4" aria-hidden />
-          Send notification
+          Send Email Notification
         </Button>
       </CardContent>
     </Card>

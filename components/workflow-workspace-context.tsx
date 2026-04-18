@@ -113,16 +113,45 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
     const snap = loadCopilotSession()
     if (snap?.workspace) {
       const w = snap.workspace
-      setSessionPhase(w.sessionPhase)
-      setPendingReplyId(w.pendingReplyId)
-      setPendingParsed(w.pendingParsed)
-      setPendingRaw(w.pendingRaw)
-      setExecutivePayload(w.executivePayload)
-      setExecutiveFallbackText(w.executiveFallbackText)
-      if (w.sessionPhase === "revealed") {
+      const hasPendingContent =
+        w.pendingParsed !== null ||
+        (typeof w.pendingRaw === "string" && w.pendingRaw.trim().length > 0)
+
+      if (w.sessionPhase === "awaiting_continue" && hasPendingContent) {
+        const parsed = w.pendingParsed
+        const raw = typeof w.pendingRaw === "string" ? w.pendingRaw : ""
         setAgents(getCompletedAgents())
+        const structured =
+          parsed &&
+          !!(
+            parsed.executiveSummary ||
+            (parsed.keyRecommendations?.length ?? 0) > 0 ||
+            parsed.expectedBusinessValue ||
+            (parsed.nextSteps?.length ?? 0) > 0
+          )
+        if (structured) {
+          setExecutivePayload(parsed)
+          setExecutiveFallbackText(null)
+        } else {
+          setExecutivePayload(null)
+          setExecutiveFallbackText(raw.trim() || null)
+        }
+        setSessionPhase("revealed")
+        setPendingReplyId(null)
+        setPendingParsed(null)
+        setPendingRaw(null)
       } else {
-        setAgents(getWaitingAgents())
+        setSessionPhase(w.sessionPhase)
+        setPendingReplyId(w.pendingReplyId)
+        setPendingParsed(w.pendingParsed)
+        setPendingRaw(w.pendingRaw)
+        setExecutivePayload(w.executivePayload)
+        setExecutiveFallbackText(w.executiveFallbackText)
+        if (w.sessionPhase === "revealed") {
+          setAgents(getCompletedAgents())
+        } else {
+          setAgents(getWaitingAgents())
+        }
       }
     }
     setWorkspaceStorageHydrated(true)
@@ -150,42 +179,43 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
     executiveFallbackText,
   ])
 
-  const onAssistantReply = useCallback(
-    (assistantMessageId: string, parsed: ParsedResponse | null, rawContent: string) => {
-      setPendingReplyId(assistantMessageId)
-      setPendingParsed(parsed)
-      setPendingRaw(rawContent)
-      setSessionPhase("awaiting_continue")
-      setAgents(getWaitingAgents())
-      setExecutivePayload(null)
-      setExecutiveFallbackText(null)
-    },
-    []
-  )
-
-  const confirmContinue = useCallback(() => {
+  const revealExecutiveFromParsed = useCallback((parsed: ParsedResponse | null, rawContent: string) => {
     setAgents(getCompletedAgents())
     const structured =
-      pendingParsed &&
+      parsed &&
       !!(
-        pendingParsed.executiveSummary ||
-        (pendingParsed.keyRecommendations?.length ?? 0) > 0 ||
-        pendingParsed.expectedBusinessValue ||
-        (pendingParsed.nextSteps?.length ?? 0) > 0
+        parsed.executiveSummary ||
+        (parsed.keyRecommendations?.length ?? 0) > 0 ||
+        parsed.expectedBusinessValue ||
+        (parsed.nextSteps?.length ?? 0) > 0
       )
     if (structured) {
-      setExecutivePayload(pendingParsed)
+      setExecutivePayload(parsed)
       setExecutiveFallbackText(null)
     } else {
       setExecutivePayload(null)
-      setExecutiveFallbackText(pendingRaw?.trim() || null)
+      setExecutiveFallbackText(rawContent.trim() || null)
     }
     setPendingReplyId(null)
     setPendingParsed(null)
     setPendingRaw(null)
     setSessionPhase("revealed")
     requestAnimationFrame(() => scrollToAgentWorkflow())
-  }, [pendingParsed, pendingRaw])
+  }, [])
+
+  const onAssistantReply = useCallback(
+    (_assistantMessageId: string, parsed: ParsedResponse | null, rawContent: string) => {
+      revealExecutiveFromParsed(parsed, rawContent)
+    },
+    [revealExecutiveFromParsed]
+  )
+
+  /** Legacy: completes reveal if old sessions still had pending workspace data. */
+  const confirmContinue = useCallback(() => {
+    if (pendingParsed !== null || (pendingRaw !== null && pendingRaw.trim() !== "")) {
+      revealExecutiveFromParsed(pendingParsed, pendingRaw ?? "")
+    }
+  }, [pendingParsed, pendingRaw, revealExecutiveFromParsed])
 
   const registerSessionResetHandler = useCallback((handler: () => void) => {
     const set = sessionResetHandlersRef.current

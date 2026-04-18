@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState, type ComponentType } from "react"
+import { useCallback, useEffect, useRef, useState, type ComponentType } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import {
   Boxes,
@@ -25,13 +25,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import type { AppSuiteProposalPayload, SoftwareProposalPayload } from "@/lib/software-proposal-types"
 import { parseStructuredProposal } from "@/lib/software-proposal-types"
 import { loadCopilotSession } from "@/lib/copilot-local-session"
 import { parseKanbanBoardPayload } from "@/lib/kanban-planning-types"
 import { useSoftwareProposal } from "@/components/software-proposal-context"
+import { exportProposalToPdf } from "@/lib/export-proposal-pdf"
+import { SOFTWARE_PROPOSAL_OUTPUT_SECTION_ID } from "@/lib/workspace-section-ids"
+import { toast } from "sonner"
 
 const PLANNING_WEBHOOK_API = "/api/n8n/planning"
 
@@ -61,6 +63,124 @@ const PLANNING_LOADER_STEPS: {
     icon: Target,
   },
 ]
+
+function PlanningApproachExplainer() {
+  return (
+    <div
+      className="mt-4 max-h-[min(60vh,26rem)] space-y-5 overflow-y-auto pr-1 text-sm leading-relaxed text-foreground"
+      role="region"
+      aria-label="Planning approach overview"
+    >
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-primary">1. What this planning step does</h4>
+        <ul className="list-disc space-y-1.5 pl-4 text-muted-foreground">
+          <li>
+            <span className="text-foreground/95">Employee data and availability</span> — skills, roles, and capacity
+            signals are read so work is only placed on people who can realistically take it on.
+          </li>
+          <li>
+            <span className="text-foreground/95">Tasks from the proposal</span> — modules, milestones, and outcomes in
+            your software proposal are decomposed into actionable tickets with clear owners in mind.
+          </li>
+          <li>
+            <span className="text-foreground/95">Assignments</span> — each ticket is matched using role fit, skill
+            coverage, and availability; gaps are flagged rather than silently overloaded.
+          </li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-primary">2. Inputs in use</h4>
+        <ul className="list-disc space-y-1.5 pl-4 text-muted-foreground">
+          <li>
+            <span className="text-foreground/95">Project proposal summary</span> — the structured proposal returned from
+            the software application proposal step (scope, modules, plan, outcomes).
+          </li>
+          <li>
+            <span className="text-foreground/95">Employee roster</span> — identifiers, roles, skills, and availability
+            windows supplied by your planning workflow / n8n context (and your saved copilot session envelope where
+            applicable).
+          </li>
+          <li>
+            <span className="text-foreground/95">Assumptions when data is thin</span> — conservative defaults (e.g.
+            standard capacity, role-only matching, unassigned swimlane) are applied and surfaced in notes so you can
+            refine data before execution.
+          </li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-primary">3. Planned outputs</h4>
+        <ul className="list-disc space-y-1.5 pl-4 text-muted-foreground">
+          <li>Task breakdown as discrete tickets with descriptions and dependencies.</li>
+          <li>Suggested assignee per task (employee id/name and role where confidence allows).</li>
+          <li>Estimated hours or duration bands and optional story points.</li>
+          <li>Priority levels aligned to delivery risk and proposal emphasis.</li>
+          <li>Phased timeline cues (e.g. discovery, build, hardening) mapped to columns or tags.</li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-primary">4. Output format (Kanban-ready JSON)</h4>
+        <p className="text-muted-foreground">
+          The webhook returns a single JSON object the UI parses directly into a board. Top-level fields:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-4 text-muted-foreground">
+          <li>
+            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">boardTitle</code>,{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">boardDescription</code> — context for
+            the programme.
+          </li>
+          <li>
+            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">columns[]</code> — each item has{" "}
+            <code className="text-xs">columnId</code>, <code className="text-xs">title</code> (e.g. &ldquo;To
+            Do&rdquo;, &ldquo;In Progress&rdquo;, &ldquo;Done&rdquo;), and <code className="text-xs">order</code>. Your
+            board renders
+            columns in sort order.
+          </li>
+          <li>
+            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">tasks[]</code> — each ticket includes{" "}
+            <code className="text-xs">taskId</code>, <code className="text-xs">title</code>,{" "}
+            <code className="text-xs">description</code>, <code className="text-xs">columnId</code>, optional{" "}
+            <code className="text-xs">priority</code>, <code className="text-xs">estimatedHours</code>, assignee fields,
+            dependencies, and tags.
+          </li>
+          <li>
+            <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">teamAllocation[]</code> — optional
+            rollup of hours, task ids, and utilization notes per employee for governance views.
+          </li>
+        </ul>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-primary">5. Constraints and logic</h4>
+        <ul className="list-disc space-y-1.5 pl-4 text-muted-foreground">
+          <li>
+            <span className="text-foreground/95">Workload guardrails</span> — per-person caps informed by stated
+            availability; work is shifted or left unassigned when a cap would be exceeded.
+          </li>
+          <li>
+            <span className="text-foreground/95">Conflicts and overload</span> — contested slots are resolved by
+            priority, then earliest free capacity; residual risk is annotated on the ticket or allocation summary.
+          </li>
+          <li>
+            <span className="text-foreground/95">Priorities</span> — driven by proposal sequencing, dependency depth,
+            and business impact tags embedded in the proposal text.
+          </li>
+        </ul>
+      </div>
+
+      <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-3 text-sm text-foreground">
+        <p className="font-semibold leading-snug">6. Confirmation</p>
+        <p className="mt-1.5 leading-relaxed text-foreground/90">
+          Do you want to proceed with planning based on this approach? Choosing{" "}
+          <span className="font-medium text-foreground">Yes — proceed with planning</span> will send your proposal and
+          session context to the planning webhook to generate the board.
+        </p>
+      </div>
+    </div>
+  )
+}
 
 function PlanningDialogLoader({
   activeStepIndex,
@@ -267,11 +387,15 @@ function ModuleGrid({ items }: { items: string[] }) {
 
 function AppSuiteProposalBody({ app }: { app: AppSuiteProposalPayload }) {
   return (
-    <div className="space-y-8">
-      <header className="space-y-3 border-b border-border/40 pb-6">
-        <h1 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{app.appName}</h1>
+    <div className="grid gap-8 lg:grid-cols-2 lg:gap-x-10 print:grid-cols-1">
+      <header className="space-y-3 border-b border-border/40 pb-6 text-center lg:col-span-2">
+        <h1 className="mx-auto max-w-4xl text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+          {app.appName}
+        </h1>
         {app.appDescription ? (
-          <p className="max-w-4xl text-sm leading-relaxed text-muted-foreground sm:text-base">{app.appDescription}</p>
+          <p className="mx-auto max-w-4xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+            {app.appDescription}
+          </p>
         ) : null}
       </header>
 
@@ -281,45 +405,31 @@ function AppSuiteProposalBody({ app }: { app: AppSuiteProposalPayload }) {
         </p>
       </ProposalBlock>
 
-      <Separator className="bg-border/40" />
-
       <ProposalBlock icon={Layers} title="Solution overview">
         <p className="text-sm leading-relaxed text-foreground/95 sm:text-base">
           {app.solutionOverview || "—"}
         </p>
       </ProposalBlock>
 
-      <Separator className="bg-border/40" />
-
       <ProposalBlock icon={ListOrdered} title="Core features">
         <NumberedList items={app.coreFeatures} />
       </ProposalBlock>
-
-      <Separator className="bg-border/40" />
 
       <ProposalBlock icon={Sparkles} title="Advanced features">
         <BulletList items={app.advancedFeatures} />
       </ProposalBlock>
 
-      <Separator className="bg-border/40" />
-
       <ProposalBlock icon={Users} title="User roles">
         <RoleChips items={app.userRoles} />
       </ProposalBlock>
-
-      <Separator className="bg-border/40" />
 
       <ProposalBlock icon={Boxes} title="System modules">
         <ModuleGrid items={app.systemModules} />
       </ProposalBlock>
 
-      <Separator className="bg-border/40" />
-
       <ProposalBlock icon={ListOrdered} title="Implementation plan">
         <NumberedList items={app.implementationPlan} />
       </ProposalBlock>
-
-      <Separator className="bg-border/40" />
 
       <ProposalBlock icon={ListOrdered} title="Expected outcomes">
         <NumberedList items={app.expectedOutcomes} />
@@ -330,8 +440,8 @@ function AppSuiteProposalBody({ app }: { app: AppSuiteProposalPayload }) {
 
 function ProposalBody({ proposal }: { proposal: SoftwareProposalPayload }) {
   return (
-    <div className="space-y-8">
-      <h1 className="text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+    <div className="grid gap-8 lg:grid-cols-2 lg:gap-x-10 print:grid-cols-1">
+      <h1 className="mx-auto max-w-4xl text-balance text-center text-2xl font-bold tracking-tight text-foreground sm:text-3xl lg:col-span-2">
         {proposal.proposalTitle}
       </h1>
 
@@ -339,29 +449,23 @@ function ProposalBody({ proposal }: { proposal: SoftwareProposalPayload }) {
         <p className="text-sm leading-relaxed text-foreground/95 sm:text-base">{proposal.clientProblem}</p>
       </ProposalBlock>
 
-      <Separator className="bg-border/40" />
-
       <ProposalBlock icon={Layers} title="Solution overview">
         <p className="text-sm leading-relaxed text-foreground/95 sm:text-base">{proposal.solutionOverview}</p>
       </ProposalBlock>
-
-      <Separator className="bg-border/40" />
 
       <ProposalBlock icon={ListOrdered} title="Proposed modules">
         <NumberedList items={proposal.proposedModules} />
       </ProposalBlock>
 
-      <Separator className="bg-border/40" />
-
       <ProposalBlock icon={ListOrdered} title="Implementation plan">
         <NumberedList items={proposal.implementationPlan} />
       </ProposalBlock>
 
-      <Separator className="bg-border/40" />
-
-      <ProposalBlock icon={ListOrdered} title="Expected outcomes">
-        <NumberedList items={proposal.expectedOutcomes} />
-      </ProposalBlock>
+      <div className="lg:col-span-2">
+        <ProposalBlock icon={ListOrdered} title="Expected outcomes">
+          <NumberedList items={proposal.expectedOutcomes} />
+        </ProposalBlock>
+      </div>
     </div>
   )
 }
@@ -372,6 +476,8 @@ type SoftwareProposalFullSectionProps = {
 
 export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSectionProps) {
   const { setPlanningBoard } = useSoftwareProposal()
+  const proposalPrintRootRef = useRef<HTMLDivElement>(null)
+  const [pdfExporting, setPdfExporting] = useState(false)
   const [planningModalOpen, setPlanningModalOpen] = useState(false)
   const [planningSubmitLoading, setPlanningSubmitLoading] = useState(false)
   const [planningSubmitError, setPlanningSubmitError] = useState<string | null>(null)
@@ -458,8 +564,30 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
     }
   }, [rawData, setPlanningBoard])
 
+  const handleSavePdf = useCallback(async () => {
+    const el = proposalPrintRootRef.current
+    if (!el) {
+      toast.error("Could not export PDF", { description: "Proposal content is not available yet." })
+      return
+    }
+    setPdfExporting(true)
+    try {
+      el.scrollIntoView({ block: "nearest", behavior: "auto" })
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      await exportProposalToPdf(el)
+      toast.success("PDF downloaded", { description: "Your proposal was exported as a multi-page A4 document." })
+    } catch (e) {
+      toast.error("PDF export failed", {
+        description: e instanceof Error ? e.message : "Something went wrong while building the file.",
+      })
+    } finally {
+      setPdfExporting(false)
+    }
+  }, [])
+
   return (
     <section
+      id={SOFTWARE_PROPOSAL_OUTPUT_SECTION_ID}
       className="mt-10 w-full border-t border-border/50 bg-gradient-to-b from-muted/30 to-background pt-12 pb-10 sm:mt-14 sm:pt-16 sm:pb-14"
       aria-labelledby="software-proposal-heading"
     >
@@ -481,9 +609,15 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" className="gap-2 border-primary/30" onClick={() => window.print()}>
-              <FileDown className="h-4 w-4" />
-              Save as PDF
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2 border-primary/30"
+              disabled={pdfExporting}
+              onClick={() => void handleSavePdf()}
+            >
+              {pdfExporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <FileDown className="h-4 w-4" aria-hidden />}
+              {pdfExporting ? "Building PDF…" : "Save as PDF"}
             </Button>
             <Button type="button" variant="secondary" className="gap-2" onClick={() => setPlanningModalOpen(true)}>
               Start planning
@@ -492,6 +626,7 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
         </div>
 
         <div
+          ref={proposalPrintRootRef}
           id="proposal-print-root"
           className="proposal-print-surface rounded-2xl border border-border/60 bg-card p-6 shadow-lg shadow-black/5 sm:p-10"
         >
@@ -512,7 +647,10 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
       <Dialog open={planningModalOpen} onOpenChange={onPlanningModalOpenChange}>
         <DialogContent
           showCloseButton={!planningSubmitLoading}
-          className={cn("gap-0 overflow-hidden p-0 sm:max-w-md", planningSubmitLoading && "sm:max-w-lg")}
+          className={cn(
+            "gap-0 overflow-hidden p-0 sm:max-w-2xl",
+            planningSubmitLoading && "sm:max-w-lg"
+          )}
           onPointerDownOutside={(e) => {
             if (planningSubmitLoading) e.preventDefault()
           }}
@@ -522,12 +660,27 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
         >
           <div className="p-6 pb-4">
             <DialogHeader>
-              <DialogTitle>{planningSubmitLoading ? "Building your plan…" : "Start planning"}</DialogTitle>
-              <DialogDescription className="text-left text-base leading-relaxed">
+              <DialogTitle>
+                {planningSubmitLoading ? "Building your plan…" : "Planning handoff — review before you continue"}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
                 {planningSubmitLoading
-                  ? "You can read the steps below while n8n prepares your Kanban board."
-                  : "Do you want to continue? Employee data and their availability will be used."}
+                  ? "Planning is running; progress steps are shown below."
+                  : "Overview of how employee data, proposal inputs, and Kanban JSON outputs are used before you confirm planning."}
               </DialogDescription>
+              {!planningSubmitLoading ? (
+                <>
+                  <p className="mt-2 text-left text-sm text-muted-foreground">
+                    Below is how this step uses your proposal and people data, what you should expect back, and how the
+                    UI will consume the response. Please confirm only if this matches your governance expectations.
+                  </p>
+                  <PlanningApproachExplainer />
+                </>
+              ) : (
+                <p className="mt-2 text-left text-sm text-muted-foreground">
+                  You can read the steps below while n8n prepares your Kanban board.
+                </p>
+              )}
             </DialogHeader>
           </div>
 
@@ -580,7 +733,7 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
                     Working…
                   </>
                 ) : (
-                  "Confirm"
+                  "Yes — proceed with planning"
                 )}
               </Button>
             </DialogFooter>

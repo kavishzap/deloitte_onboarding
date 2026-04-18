@@ -18,6 +18,7 @@ import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities"
 import { GripVertical, User } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { KanbanTaskEditDialog } from "@/components/kanban-task-edit-dialog"
 import { cn } from "@/lib/utils"
 import type { KanbanBoardPayload, KanbanTask } from "@/lib/kanban-planning-types"
 
@@ -80,7 +81,8 @@ function priorityClass(priority?: string) {
 
 function TaskCard({ task }: { task: KanbanTask }) {
   return (
-    <article
+    <div
+      role="article"
       className="rounded-xl border border-border/60 bg-card p-3 shadow-sm transition-shadow hover:shadow-md"
       data-task-id={task.taskId}
     >
@@ -124,11 +126,11 @@ function TaskCard({ task }: { task: KanbanTask }) {
           ))}
         </div>
       ) : null}
-    </article>
+    </div>
   )
 }
 
-function SortableTaskRow({ task }: { task: KanbanTask }) {
+function SortableTaskRow({ task, onSelect }: { task: KanbanTask; onSelect: (task: KanbanTask) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.taskId,
   })
@@ -151,7 +153,20 @@ function SortableTaskRow({ task }: { task: KanbanTask }) {
           <GripVertical className="h-4 w-4" aria-hidden />
         </button>
         <div className="min-w-0 flex-1">
-          <TaskCard task={task} />
+          <div
+            role="button"
+            tabIndex={0}
+            className="w-full cursor-pointer rounded-xl text-left outline-none ring-offset-background transition-shadow hover:ring-2 hover:ring-ring/40 focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => onSelect(task)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                onSelect(task)
+              }
+            }}
+          >
+            <TaskCard task={task} />
+          </div>
         </div>
       </div>
     </div>
@@ -192,6 +207,7 @@ type KanbanDraggableColumnsProps = {
 export function KanbanDraggableColumns({ board, onBoardReorder }: KanbanDraggableColumnsProps) {
   const [columnTaskIds, setColumnTaskIds] = useState<Record<string, string[]>>(() => buildColumnTaskIds(board))
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
+  const [editingTask, setEditingTask] = useState<KanbanTask | null>(null)
   const boardRef = useRef(board)
   boardRef.current = board
 
@@ -298,6 +314,35 @@ export function KanbanDraggableColumns({ board, onBoardReorder }: KanbanDraggabl
     setColumnTaskIds(buildColumnTaskIds(boardRef.current))
   }, [])
 
+  const handleTaskSave = useCallback(
+    (edited: KanbanTask) => {
+      const b = boardRef.current
+      const prev = b.tasks.find((t) => t.taskId === edited.taskId)
+      if (!prev) return
+
+      setColumnTaskIds((current) => {
+        const next: Record<string, string[]> = {}
+        for (const c of b.columns) {
+          next[c.columnId] = [...(current[c.columnId] ?? [])]
+        }
+        if (prev.columnId !== edited.columnId) {
+          for (const k of Object.keys(next)) {
+            next[k] = next[k].filter((id) => id !== edited.taskId)
+          }
+          if (!next[edited.columnId]) next[edited.columnId] = []
+          next[edited.columnId] = [...next[edited.columnId], edited.taskId]
+        }
+
+        const nextTasks = b.tasks.map((t) => (t.taskId === edited.taskId ? edited : t))
+        const merged = mergeBoardWithColumnOrder({ ...b, tasks: nextTasks }, next)
+        queueMicrotask(() => onBoardReorder(merged))
+        return next
+      })
+      setEditingTask(null)
+    },
+    [onBoardReorder]
+  )
+
   const activeTask = activeId ? taskById.get(String(activeId)) : null
 
   return (
@@ -309,34 +354,34 @@ export function KanbanDraggableColumns({ board, onBoardReorder }: KanbanDraggabl
       onDragEnd={onDragEnd}
       onDragCancel={onDragCancel}
     >
-      <div className="-mx-1 overflow-x-auto px-1 pb-2">
-        <div className="flex w-max min-w-full gap-4 pb-4">
-          {board.columns.map((col) => {
-            const ids = columnTaskIds[col.columnId] ?? []
-            const isEmpty = ids.length === 0
-            return (
-              <div
-                key={col.columnId}
-                className="flex w-[min(100vw-2rem,20rem)] shrink-0 flex-col rounded-2xl border border-border/50 bg-muted/30 shadow-inner sm:w-[22rem]"
-              >
-                <div className="border-b border-border/40 bg-muted/50 px-3 py-3 sm:px-4">
-                  <h3 className="text-sm font-semibold text-foreground">{col.title}</h3>
-                  <p className="text-xs text-muted-foreground">{ids.length} tasks</p>
+      <div className="-mx-1 overflow-x-auto px-1 pb-2 text-center">
+        <div className="inline-flex gap-4 pb-4 text-left">
+            {board.columns.map((col) => {
+              const ids = columnTaskIds[col.columnId] ?? []
+              const isEmpty = ids.length === 0
+              return (
+                <div
+                  key={col.columnId}
+                  className="flex w-[min(100vw-2rem,20rem)] shrink-0 flex-col rounded-2xl border border-border/50 bg-muted/30 shadow-inner sm:w-[22rem]"
+                >
+                  <div className="border-b border-border/40 bg-muted/50 px-3 py-3 sm:px-4">
+                    <h3 className="text-sm font-semibold text-foreground">{col.title}</h3>
+                    <p className="text-xs text-muted-foreground">{ids.length} tasks</p>
+                  </div>
+                  <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+                    <ColumnDropArea columnId={col.columnId} isEmpty={isEmpty}>
+                      {!isEmpty
+                        ? ids.map((taskId) => {
+                            const task = taskById.get(taskId)
+                            if (!task) return null
+                            return <SortableTaskRow key={taskId} task={task} onSelect={setEditingTask} />
+                          })
+                        : null}
+                    </ColumnDropArea>
+                  </SortableContext>
                 </div>
-                <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-                  <ColumnDropArea columnId={col.columnId} isEmpty={isEmpty}>
-                    {!isEmpty
-                      ? ids.map((taskId) => {
-                          const task = taskById.get(taskId)
-                          if (!task) return null
-                          return <SortableTaskRow key={taskId} task={task} />
-                        })
-                      : null}
-                  </ColumnDropArea>
-                </SortableContext>
-              </div>
-            )
-          })}
+              )
+            })}
         </div>
       </div>
 
@@ -347,6 +392,16 @@ export function KanbanDraggableColumns({ board, onBoardReorder }: KanbanDraggabl
           </div>
         ) : null}
       </DragOverlay>
+
+      <KanbanTaskEditDialog
+        open={editingTask !== null}
+        onOpenChange={(next) => {
+          if (!next) setEditingTask(null)
+        }}
+        task={editingTask}
+        columns={board.columns}
+        onSave={handleTaskSave}
+      />
     </DndContext>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { AlertCircle, FolderGit2, LayoutGrid, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { KanbanDraggableColumns } from "@/components/kanban-draggable-columns"
 import { useSoftwareProposal } from "@/components/software-proposal-context"
-import type { KanbanBoardPayload } from "@/lib/kanban-planning-types"
+import { removeReviewColumnFromBoard, type KanbanBoardPayload } from "@/lib/kanban-planning-types"
 import { cn } from "@/lib/utils"
 import { buildProjectSummaryText } from "@/lib/project-html-agent"
 import { parseStructuredProposal } from "@/lib/software-proposal-types"
@@ -29,19 +29,21 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
   const [repoLoading, setRepoLoading] = useState(false)
   const [repoError, setRepoError] = useState<string | null>(null)
 
+  const displayBoard = useMemo(() => removeReviewColumnFromBoard(board), [board])
+
   const generateRepositoryPreview = useCallback(async () => {
     setRepoError(null)
     setRepoLoading(true)
     try {
       const parsed = parseStructuredProposal(proposalResult)
-      const projectSummary = buildProjectSummaryText(parsed, board)
+      const projectSummary = buildProjectSummaryText(parsed, displayBoard)
       const res = await fetch(PROJECT_HTML_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectSummary,
           proposalResponse: proposalResult,
-          planningBoard: board,
+          planningBoard: displayBoard,
         }),
       })
       const responseText = await res.text()
@@ -93,7 +95,7 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
     } finally {
       setRepoLoading(false)
     }
-  }, [board, proposalResult, setRepositoryHtml])
+  }, [displayBoard, proposalResult, setRepositoryHtml])
 
   return (
     <section
@@ -102,31 +104,53 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
       aria-labelledby="planning-kanban-title"
     >
       <div className="mx-auto w-full max-w-[min(100vw-1.5rem,120rem)] px-3 sm:px-6 lg:px-8">
-        <header className="mb-8 max-w-4xl">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">Planning board</p>
-          <h2
-            id="planning-kanban-title"
-            className="mt-1 flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
-          >
-            <LayoutGrid className="h-7 w-7 shrink-0 text-primary" aria-hidden />
-            {board.boardTitle}
-          </h2>
-          {board.boardDescription ? (
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">{board.boardDescription}</p>
-          ) : null}
+        <header className="mx-auto mb-8 flex w-full max-w-6xl flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-center sm:gap-8 lg:gap-10">
+          <div className="min-w-0 max-w-3xl flex-1 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Planning board</p>
+            <h2
+              id="planning-kanban-title"
+              className="mt-1 flex flex-wrap items-center justify-center gap-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
+            >
+              <LayoutGrid className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+              {displayBoard.boardTitle}
+            </h2>
+            {displayBoard.boardDescription ? (
+              <p className="mx-auto mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {displayBoard.boardDescription}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex w-full shrink-0 justify-center sm:w-auto">
+            <Button
+              type="button"
+              size="lg"
+              className="w-full min-w-[min(100%,16rem)] gap-2 px-6 sm:w-auto sm:min-w-[12rem] sm:px-8"
+              disabled={repoLoading}
+              onClick={() => void generateRepositoryPreview()}
+            >
+              {repoLoading ? (
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
+              ) : (
+                <FolderGit2 className="h-5 w-5 shrink-0" aria-hidden />
+              )}
+              Generate Code repository
+            </Button>
+          </div>
         </header>
 
-        <KanbanDraggableColumns board={board} onBoardReorder={setPlanningBoard} />
+        <KanbanDraggableColumns board={displayBoard} onBoardReorder={setPlanningBoard} />
 
-        <KanbanCompletionPie board={board} />
+        <KanbanCompletionPie board={displayBoard} />
 
-        {board.teamAllocation.length > 0 ? (
+        {displayBoard.teamAllocation.length > 0 ? (
           <>
             <Separator className="my-10 bg-border/40" />
             <div>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-foreground">Team allocation</h3>
+              <h3 className="mb-4 text-center text-sm font-semibold uppercase tracking-wide text-foreground">
+                Team allocation
+              </h3>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {board.teamAllocation.map((member) => (
+                {displayBoard.teamAllocation.map((member) => (
                   <Card key={member.employeeId} className="border-border/50 bg-card shadow-sm">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base">{member.employeeName}</CardTitle>
@@ -152,23 +176,6 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
             </div>
           </>
         ) : null}
-
-        <div className="mt-12 flex justify-center border-t border-border/40 pt-10">
-          <Button
-            type="button"
-            size="lg"
-            className="min-w-[min(100%,20rem)] gap-2 px-8"
-            disabled={repoLoading}
-            onClick={() => void generateRepositoryPreview()}
-          >
-            {repoLoading ? (
-              <Loader2 className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
-            ) : (
-              <FolderGit2 className="h-5 w-5 shrink-0" aria-hidden />
-            )}
-            Generate Code repository
-          </Button>
-        </div>
 
         {(repoLoading || repoError || repositoryHtml) && (
           <div
