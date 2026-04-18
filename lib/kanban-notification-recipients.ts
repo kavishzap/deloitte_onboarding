@@ -17,8 +17,10 @@ export const KANBAN_NOTIFICATION_RECIPIENTS: KanbanNotificationRecipient[] = [
     email: "kavish17mojhoa+board@gmail.com",
     phone: "+23057003456",
   },
-  { id: "d-1", name: "Deloitte User 1", email: "luexternalahossany@deloitte.lu", phone: "+23057002345" },
+  { id: "d-1", name: "Deloitte User 1", email: "luexternalanarrainen@deloitte.lu", phone: "+23057002345" },
   
-  { id: "d-2", name: "Deloitte User 2", email: "kavish17mojhoa@gmail.com", phone: "+23057002345" },
+  { id: "d-2", name: "Deloitte User 2", email: "palaurent@deloitte.lu", phone: "+23057002345" },
+
+  { id: "d-3", name: "Deloitte User 3", email: "tchollet@deloitte.lu", phone: "+23057002345" },
   
 ]
