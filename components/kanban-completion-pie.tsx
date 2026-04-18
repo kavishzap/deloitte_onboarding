@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Pie, PieChart } from "recharts"
-import { Bell, Loader2, User } from "lucide-react"
+import { Bell, Loader2, MessageCircle, User } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +32,10 @@ const KANBAN_NOTIFICATION_N8N_WEBHOOK =
   process.env.NEXT_PUBLIC_N8N_KANBAN_NOTIFICATION_WEBHOOK_URL?.trim() ||
   "https://kavishmk.app.n8n.cloud/webhook-test/b06cf682-e51f-4e85-ba8e-10b339aef822"
 
+/** Optional separate n8n URL for WhatsApp; defaults to the same webhook (branch on `Notification Channel`). */
+const KANBAN_WHATSAPP_N8N_WEBHOOK =
+  process.env.NEXT_PUBLIC_N8N_KANBAN_WHATSAPP_WEBHOOK_URL?.trim() || KANBAN_NOTIFICATION_N8N_WEBHOOK
+
 const chartConfig = {
   completed: {
     label: "Completed",
@@ -50,10 +54,15 @@ type KanbanCompletionPieProps = {
 export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
   const stats = useMemo(() => getKanbanCompletionStats(board), [board])
   const [notifyOpen, setNotifyOpen] = useState(false)
+  const [whatsappOpen, setWhatsappOpen] = useState(false)
   const [selectedRecipientId, setSelectedRecipientId] = useState(
     () => KANBAN_NOTIFICATION_RECIPIENTS[0]?.id ?? ""
   )
+  const [selectedWhatsappRecipientId, setSelectedWhatsappRecipientId] = useState(
+    () => KANBAN_NOTIFICATION_RECIPIENTS[0]?.id ?? ""
+  )
   const [sendLoading, setSendLoading] = useState(false)
+  const [whatsappSendLoading, setWhatsappSendLoading] = useState(false)
 
   const chartData = useMemo(() => {
     const { completedTasks, remainingTasks } = stats
@@ -80,6 +89,11 @@ export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
   const openNotifyModal = () => {
     setSelectedRecipientId(KANBAN_NOTIFICATION_RECIPIENTS[0]?.id ?? "")
     setNotifyOpen(true)
+  }
+
+  const openWhatsappModal = () => {
+    setSelectedWhatsappRecipientId(KANBAN_NOTIFICATION_RECIPIENTS[0]?.id ?? "")
+    setWhatsappOpen(true)
   }
 
   const handleSendNotification = async () => {
@@ -146,6 +160,77 @@ export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
       })
     } finally {
       setSendLoading(false)
+    }
+  }
+
+  const handleSendWhatsappNotification = async () => {
+    const recipient = KANBAN_NOTIFICATION_RECIPIENTS.find((r) => r.id === selectedWhatsappRecipientId)
+    if (!recipient) {
+      toast.error("Choose a recipient", {
+        description: "Select who should receive this WhatsApp message.",
+      })
+      return
+    }
+
+    setWhatsappSendLoading(true)
+    try {
+      const subject = `Planning board update: ${board.boardTitle}`
+      const summaryLine = `Board “${board.boardTitle}” is ${stats.percentComplete}% complete (${stats.completedTasks}/${stats.totalTasks} tasks in “${doneTitle}”).`
+
+      const n8nBody: Record<string, string | number> = {
+        "Notification Channel": "whatsapp",
+        "Recipient Phone": recipient.phone,
+        "Recipient Name": recipient.name,
+        "Recipient Email": recipient.email,
+        Subject: subject,
+        "Board Title": board.boardTitle,
+        "Percent Complete": stats.percentComplete,
+        "Completed Tasks": stats.completedTasks,
+        "Total Tasks": stats.totalTasks,
+        "Done Column Title": doneTitle,
+        "Summary Line": summaryLine,
+      }
+
+      const res = await fetch(KANBAN_WHATSAPP_N8N_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(n8nBody),
+      })
+
+      const rawText = await res.text()
+      let payload: unknown = rawText
+      try {
+        payload = rawText ? (JSON.parse(rawText) as unknown) : null
+      } catch {
+        payload = rawText
+      }
+
+      if (!res.ok) {
+        const errMsg =
+          typeof payload === "object" && payload !== null && "error" in payload
+            ? String((payload as { error?: unknown }).error)
+            : `Request failed (${res.status})`
+        throw new Error(errMsg || `Request failed (${res.status})`)
+      }
+
+      let extra = ""
+      if (typeof payload === "object" && payload !== null && "message" in payload) {
+        const m = (payload as { message?: unknown }).message
+        if (typeof m === "string" && m.trim()) extra = m.trim()
+      }
+
+      toast.success("WhatsApp notification sent", {
+        description: extra
+          ? `${extra} — ${recipient.name} (${recipient.phone}).`
+          : `Planning update queued for ${recipient.name} (${recipient.phone}).`,
+      })
+      setWhatsappOpen(false)
+    } catch (e) {
+      toast.error("Could not send WhatsApp notification", {
+        description: e instanceof Error ? e.message : "The request failed.",
+      })
+    } finally {
+      setWhatsappSendLoading(false)
     }
   }
 
@@ -234,10 +319,21 @@ export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
             </div>
           )}
 
-          <Button type="button" className="mx-auto w-full max-w-sm sm:w-auto" onClick={openNotifyModal}>
-            <Bell className="mr-2 h-4 w-4" aria-hidden />
-            Send Email Notification
-          </Button>
+          <div className="flex w-full max-w-lg flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
+            <Button type="button" className="w-full sm:w-auto" onClick={openNotifyModal}>
+              <Bell className="mr-2 h-4 w-4" aria-hidden />
+              Send Email Notification
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-emerald-600/40 bg-emerald-500/[0.08] text-emerald-800 hover:bg-emerald-500/15 dark:border-emerald-500/35 dark:text-emerald-300 sm:w-auto"
+              onClick={openWhatsappModal}
+            >
+              <MessageCircle className="mr-2 h-4 w-4" aria-hidden />
+              Send WhatsApp Notification
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -303,6 +399,80 @@ export function KanbanCompletionPie({ board }: KanbanCompletionPieProps) {
                 <>
                   <Bell className="mr-2 h-4 w-4" aria-hidden />
                   Send email
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={whatsappOpen}
+        onOpenChange={(open) => {
+          if (!open && whatsappSendLoading) return
+          setWhatsappOpen(open)
+        }}
+      >
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton={!whatsappSendLoading}>
+          <DialogHeader className="border-b border-border/50 px-6 py-4 text-left">
+            <DialogTitle>Send WhatsApp notification</DialogTitle>
+            <DialogDescription>
+              Choose who receives a WhatsApp summary of this planning board. Numbers are sent to your workflow as{" "}
+              <code className="rounded bg-muted px-1 text-xs">Recipient Phone</code> (E.164).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[min(60vh,22rem)] overflow-y-auto px-6 py-4">
+            <RadioGroup
+              value={selectedWhatsappRecipientId}
+              onValueChange={setSelectedWhatsappRecipientId}
+              className="gap-2"
+              disabled={whatsappSendLoading}
+            >
+              {KANBAN_NOTIFICATION_RECIPIENTS.map((person) => (
+                <div key={`wa-${person.id}`}>
+                  <RadioGroupItem value={person.id} id={`wa-notify-${person.id}`} className="peer sr-only" />
+                  <Label
+                    htmlFor={`wa-notify-${person.id}`}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 transition-colors hover:bg-muted/35",
+                      "peer-focus-visible:ring-ring/50 peer-focus-visible:ring-[3px] peer-focus-visible:outline-none",
+                      selectedWhatsappRecipientId === person.id &&
+                        "border-primary/50 bg-primary/5 ring-1 ring-primary/20"
+                    )}
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border/50 bg-background text-emerald-600 shadow-sm dark:text-emerald-400">
+                      <User className="h-5 w-5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block text-sm font-semibold text-foreground">{person.name}</span>
+                      <span className="block truncate font-mono text-xs text-muted-foreground">{person.phone}</span>
+                    </span>
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+
+          <DialogFooter className="gap-2 border-t border-border/50 px-6 py-4 sm:justify-end">
+            <Button type="button" variant="outline" disabled={whatsappSendLoading} onClick={() => setWhatsappOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+              disabled={whatsappSendLoading || !selectedWhatsappRecipientId}
+              onClick={() => void handleSendWhatsappNotification()}
+            >
+              {whatsappSendLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <MessageCircle className="mr-2 h-4 w-4" aria-hidden />
+                  Send WhatsApp
                 </>
               )}
             </Button>
