@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -22,6 +22,17 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { PipelineDialogLoader } from "@/components/pipeline-dialog-loader"
+import { COPILOT_WORKFLOW_PIPELINE_STEPS } from "@/lib/copilot-pipeline-loader-steps"
+import { cn } from "@/lib/utils"
 import { DeloitteListeningPortal } from "@/components/deloitte-listening-portal"
 import { inferChatWebhookContext } from "@/lib/infer-webhook-context"
 import type { ParsedResponse } from "@/lib/copilot-response-types"
@@ -30,7 +41,7 @@ import {
   messagesToSerializable,
   saveCopilotSession,
 } from "@/lib/copilot-local-session"
-import { scrollToAgentWorkflow, useWorkflowWorkspace } from "@/components/workflow-workspace-context"
+import { useWorkflowWorkspace } from "@/components/workflow-workspace-context"
 
 interface Message {
   id: string
@@ -43,12 +54,7 @@ interface Message {
 
 const SAMPLE_PROMPTS = ["A company wants to improve customer service using AI."]
 
-const LOADING_HINTS = [
-  "Running your brief through the n8n workflow — complex answers can take a little longer.",
-  "Synthesising recommendations so they land in an executive-ready format.",
-  "Still here — large payloads or cold starts sometimes add extra seconds.",
-  "You can keep working elsewhere in the tab; this reply will appear as soon as it is ready.",
-] as const
+type CopilotPipelinePhase = "idle" | "running" | "done"
 
 /**
  * `NEXT_PUBLIC_N8N_CHAT_ENDPOINT` must be a path on this app (e.g. `/api/n8n/webhook`),
@@ -145,7 +151,11 @@ export function AIChatbot() {
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [listeningOpen, setListeningOpen] = useState(false)
-  const [loadingHintIndex, setLoadingHintIndex] = useState(0)
+  const [copilotPipelineOpen, setCopilotPipelineOpen] = useState(false)
+  const [copilotPipelinePhase, setCopilotPipelinePhase] = useState<CopilotPipelinePhase>("idle")
+  const [copilotLoaderStep, setCopilotLoaderStep] = useState(0)
+  const [copilotLoaderProgress, setCopilotLoaderProgress] = useState(8)
+  const [copilotPipelineError, setCopilotPipelineError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -171,9 +181,20 @@ export function AIChatbot() {
     saveCopilotSession({ messages: messagesToSerializable(messages) })
   }, [messagesStorageHydrated, messages])
 
+  const dismissCopilotPipelineModal = useCallback(() => {
+    setCopilotPipelineOpen(false)
+    setCopilotPipelinePhase("idle")
+    setCopilotPipelineError(null)
+    setCopilotLoaderStep(0)
+    setCopilotLoaderProgress(8)
+  }, [])
+
   useEffect(() => {
-    return registerSessionResetHandler(() => setMessages([]))
-  }, [registerSessionResetHandler])
+    return registerSessionResetHandler(() => {
+      setMessages([])
+      dismissCopilotPipelineModal()
+    })
+  }, [registerSessionResetHandler, dismissCopilotPipelineModal])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -182,17 +203,37 @@ export function AIChatbot() {
   }, [messages, isLoading])
 
   useEffect(() => {
-    if (!isLoading) return
-    setLoadingHintIndex(0)
-    const id = window.setInterval(() => {
-      setLoadingHintIndex((i) => (i + 1) % LOADING_HINTS.length)
-    }, 4200)
-    return () => window.clearInterval(id)
-  }, [isLoading])
+    if (copilotPipelinePhase !== "running") return
+    const stepTimer = window.setInterval(() => {
+      setCopilotLoaderStep((s) => Math.min(s + 1, COPILOT_WORKFLOW_PIPELINE_STEPS.length - 1))
+    }, 2100)
+    const progressTimer = window.setInterval(() => {
+      setCopilotLoaderProgress((p) => {
+        if (p >= 94) return p
+        return Math.min(94, p + 2.2 + Math.random() * 2.5)
+      })
+    }, 380)
+    return () => {
+      window.clearInterval(stepTimer)
+      window.clearInterval(progressTimer)
+    }
+  }, [copilotPipelinePhase])
 
   useEffect(() => {
     notifyCopilotLoading(isLoading)
   }, [isLoading, notifyCopilotLoading])
+
+  const handleCopilotPipelineOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && (copilotPipelinePhase === "running" || copilotPipelinePhase === "done")) return
+      if (!open) {
+        dismissCopilotPipelineModal()
+      } else {
+        setCopilotPipelineOpen(true)
+      }
+    },
+    [copilotPipelinePhase, dismissCopilotPipelineModal]
+  )
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
@@ -206,11 +247,20 @@ export function AIChatbot() {
 
     setMessages(prev => [...prev, userMessage])
     setInput("")
+    setCopilotPipelineError(null)
+    setCopilotLoaderStep(0)
+    setCopilotLoaderProgress(8)
+    setCopilotPipelinePhase("running")
+    setCopilotPipelineOpen(true)
     setIsLoading(true)
     requestAnimationFrame(() => {
-      scrollToAgentWorkflow()
+      document.getElementById("transformation-copilot")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      })
     })
 
+    let pipelineErr: string | null = null
     try {
       const inferred = inferChatWebhookContext(userMessage.content)
       const response = await fetch(CHAT_WEBHOOK_URL, {
@@ -255,16 +305,30 @@ export function AIChatbot() {
         assistantMessage.content
       )
     } catch (error) {
+      const msg =
+        error instanceof Error
+          ? error.message
+          : "I apologize, but I encountered an issue processing your request. Please try again or contact support if the problem persists."
+      pipelineErr = msg
       const errorMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "I apologize, but I encountered an issue processing your request. Please try again or contact support if the problem persists.",
+        content:
+          "I apologize, but I encountered an issue processing your request. Please try again or contact support if the problem persists.",
         timestamp: new Date(),
         isError: true,
       }
-      setMessages(prev => [...prev, errorMessage])
+      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
+      if (pipelineErr === null) {
+        setCopilotLoaderStep(COPILOT_WORKFLOW_PIPELINE_STEPS.length)
+        setCopilotLoaderProgress(100)
+        setCopilotPipelineError(null)
+      } else {
+        setCopilotPipelineError(pipelineErr)
+      }
+      setCopilotPipelinePhase("done")
     }
   }
 
@@ -285,6 +349,85 @@ export function AIChatbot() {
       className="scroll-mt-24 py-16 px-4 sm:px-6 lg:px-8"
     >
       <DeloitteListeningPortal open={listeningOpen} onClose={() => setListeningOpen(false)} />
+
+      <Dialog open={copilotPipelineOpen} onOpenChange={handleCopilotPipelineOpenChange}>
+        <DialogContent
+          showCloseButton={false}
+          className={cn("gap-0 overflow-hidden p-0 sm:max-w-lg")}
+          onPointerDownOutside={(e) => {
+            if (copilotPipelinePhase === "running" || copilotPipelinePhase === "done") e.preventDefault()
+          }}
+          onEscapeKeyDown={(e) => {
+            if (copilotPipelinePhase === "running" || copilotPipelinePhase === "done") e.preventDefault()
+          }}
+        >
+          <div className="p-6 pb-4">
+            <DialogHeader>
+              <DialogTitle>
+                {copilotPipelinePhase === "running" && "Working on your response…"}
+                {copilotPipelinePhase === "done" && !copilotPipelineError && "Response ready"}
+                {copilotPipelinePhase === "done" && copilotPipelineError && "Something went wrong"}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Copilot pipeline progress while the n8n workflow produces a reply.
+              </DialogDescription>
+              <p className="mt-2 text-left text-sm text-muted-foreground">
+                {copilotPipelinePhase === "running" &&
+                  "Intake through Summary — same agent sequence as your workflow. This dialog stays open until you choose Completed."}
+                {copilotPipelinePhase === "done" && !copilotPipelineError &&
+                  "Your reply is in the chat thread below. Choose Completed when you are finished reviewing this summary."}
+                {copilotPipelinePhase === "done" && copilotPipelineError &&
+                  "Review the error below, then choose Completed to close this window."}
+              </p>
+            </DialogHeader>
+          </div>
+
+          <div className="border-t border-border/50 bg-muted/20 px-6 pb-6">
+            <div className="pt-4">
+              <PipelineDialogLoader
+                activeStepIndex={copilotLoaderStep}
+                progress={copilotLoaderProgress}
+                steps={COPILOT_WORKFLOW_PIPELINE_STEPS}
+                pipelineTitle="Agent workflow"
+                pipelineSubtitle={
+                  copilotPipelinePhase === "done" && !copilotPipelineError
+                    ? "All steps finished."
+                    : copilotPipelinePhase === "done" && copilotPipelineError
+                      ? "Run ended with an error."
+                      : "Hang tight — your executive-ready reply is being assembled."
+                }
+                isComplete={copilotPipelinePhase === "done"}
+                errorMessage={copilotPipelinePhase === "done" && copilotPipelineError ? copilotPipelineError : null}
+                footerHint={
+                  copilotPipelinePhase === "done" && !copilotPipelineError
+                    ? "Scroll the chat to read the full response."
+                    : "Cold starts on n8n can add a few extra seconds — nothing is stuck."
+                }
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-border/50 bg-background p-6 pt-4">
+            <DialogFooter>
+              {copilotPipelinePhase === "running" ? (
+                <p className="w-full text-center text-xs text-muted-foreground sm:text-left">
+                  Please wait — this window stays open until the run finishes.
+                </p>
+              ) : (
+                <Button
+                  type="button"
+                  variant="default"
+                  className="min-w-[10rem] sm:ml-auto"
+                  onClick={dismissCopilotPipelineModal}
+                >
+                  Completed
+                </Button>
+              )}
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <motion.div
@@ -452,82 +595,6 @@ export function AIChatbot() {
                     </motion.div>
                   ))}
                 </AnimatePresence>
-
-                {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-start"
-                  >
-                    <div className="flex gap-3">
-                      <motion.div
-                        className="relative flex h-8 w-8 shrink-0 items-center justify-center"
-                        animate={{ scale: [1, 1.06, 1] }}
-                        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                      >
-                        <span
-                          className="pointer-events-none absolute inset-0 rounded-lg bg-primary/25 blur-[6px]"
-                          aria-hidden
-                        />
-                        <div className="relative flex h-full w-full items-center justify-center rounded-lg border border-primary/25 bg-secondary">
-                          <Bot className="h-4 w-4 text-primary" aria-hidden />
-                        </div>
-                      </motion.div>
-                      <div className="min-w-0 max-w-[min(100%,22rem)] rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.07] via-secondary/45 to-secondary/30 px-4 py-3.5 shadow-sm">
-                        <div className="flex gap-2.5">
-                          <Loader2
-                            className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary"
-                            aria-hidden
-                          />
-                          <div className="min-w-0 flex-1 space-y-2.5">
-                            <p className="text-sm font-medium leading-snug text-foreground">
-                              Analyzing your business challenge
-                              <span className="inline-flex translate-y-px gap-0.5 pl-0.5" aria-hidden>
-                                {[0, 1, 2].map((i) => (
-                                  <motion.span
-                                    key={i}
-                                    className="inline-block h-1 w-1 rounded-full bg-primary"
-                                    animate={{ opacity: [0.25, 1, 0.25], y: [0, -3, 0] }}
-                                    transition={{
-                                      duration: 1,
-                                      repeat: Infinity,
-                                      delay: i * 0.18,
-                                      ease: "easeInOut",
-                                    }}
-                                  />
-                                ))}
-                              </span>
-                            </p>
-                            <div className="h-1 w-full overflow-hidden rounded-full bg-muted/90">
-                              <motion.div
-                                className="h-full w-[42%] rounded-full bg-gradient-to-r from-transparent via-primary/80 to-transparent"
-                                initial={false}
-                                animate={{ x: ["-30%", "220%"] }}
-                                transition={{
-                                  duration: 1.65,
-                                  repeat: Infinity,
-                                  ease: "linear",
-                                }}
-                              />
-                            </div>
-                            <AnimatePresence mode="wait">
-                              <motion.p
-                                key={loadingHintIndex}
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -4 }}
-                                transition={{ duration: 0.28 }}
-                                className="text-[11px] leading-relaxed text-muted-foreground sm:text-xs"
-                              >
-                                {LOADING_HINTS[loadingHintIndex]}
-                              </motion.p>
-                            </AnimatePresence>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
               </div>
             )}
           </ScrollArea>

@@ -8,7 +8,11 @@ import { Button } from "@/components/ui/button"
 import { Cpu, Loader2, RotateCcw, Sparkles } from "lucide-react"
 import { ExecutiveResponseBody } from "@/components/executive-response-body"
 import { useSoftwareProposal } from "@/components/software-proposal-context"
-import { scrollToAgentWorkflow, useWorkflowWorkspace } from "@/components/workflow-workspace-context"
+import {
+  EXECUTIVE_OUTPUT_ANCHOR_ID,
+  scrollToExecutiveOutput,
+  useWorkflowWorkspace,
+} from "@/components/workflow-workspace-context"
 import { loadCopilotSession } from "@/lib/copilot-local-session"
 import { scrollToSoftwareProposalOutput } from "@/lib/workspace-section-ids"
 
@@ -21,8 +25,8 @@ function ExecutiveEmptyState() {
       <h4 className="text-sm font-semibold tracking-tight text-foreground">Executive output not loaded</h4>
       <p className="mt-2 max-w-[22rem] text-xs leading-relaxed text-muted-foreground">
         When the copilot responds, the structured executive view is{" "}
-        <strong className="text-foreground">filled in here automatically</strong>. While the model is working, the{" "}
-        <strong className="text-foreground">AI Agent Workflow</strong> timeline above runs each agent in sequence.
+        <strong className="text-foreground">filled in here automatically</strong>. While the model is working, agent
+        progress (Intake → Summary) runs in the <strong className="text-foreground">modal</strong> over the chat.
       </p>
       <ol className="mt-5 w-full max-w-[20rem] space-y-2.5 text-left text-[11px] leading-snug text-muted-foreground">
         <li className="flex gap-2.5">
@@ -35,7 +39,7 @@ function ExecutiveEmptyState() {
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
             2
           </span>
-          <span>Wait for the reply — workflow agents animate in sequence in the bar above.</span>
+          <span>Wait for the reply — the same Intake→Summary steps animate in the chat modal.</span>
         </li>
         <li className="flex gap-2.5">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
@@ -51,7 +55,7 @@ function ExecutiveEmptyState() {
 const BUSINESS_PROPOSAL_API = "/api/n8n/business-proposal"
 
 export function ExecutiveOutputPanel() {
-  const { sessionPhase, executivePayload, executiveFallbackText, loadingSimAgents, restartWorkspace } =
+  const { sessionPhase, executivePayload, executiveFallbackText, isCopilotLoading, restartWorkspace } =
     useWorkflowWorkspace()
   const { proposalResult, setProposalResult } = useSoftwareProposal()
 
@@ -102,7 +106,7 @@ export function ExecutiveOutputPanel() {
   }, [restartWorkspace])
 
   return (
-    <div className="space-y-4">
+    <div id={EXECUTIVE_OUTPUT_ANCHOR_ID} className="scroll-mt-24 space-y-4">
       <motion.div
         initial={{ opacity: 0, x: 20 }}
         whileInView={{ opacity: 1, x: 0 }}
@@ -114,7 +118,7 @@ export function ExecutiveOutputPanel() {
             <CardTitle className="flex flex-wrap items-center gap-2 text-lg font-semibold text-foreground">
               <div className="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400" />
               Executive Output
-              {loadingSimAgents ? (
+              {isCopilotLoading ? (
                 <Badge
                   variant="outline"
                   className="ml-auto border-primary/30 bg-primary/10 text-xs text-primary"
@@ -135,23 +139,24 @@ export function ExecutiveOutputPanel() {
           </CardHeader>
           <CardContent className="flex flex-col pt-2">
             <div className="min-h-[10rem] flex-1">
-              {loadingSimAgents && !hasDisplayContent ? (
+              {isCopilotLoading && !hasDisplayContent ? (
                 <div className="space-y-3 rounded-xl border border-border/40 bg-muted/15 p-4">
                   <p className="text-sm leading-relaxed text-foreground">
                     The <strong className="font-semibold text-foreground">executive summary</strong> will appear here
                     as soon as the copilot finishes responding.
                   </p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Live agent progress is only in the <strong className="text-foreground/90">AI Agent Workflow</strong> timeline above — it stays on the final agent until the reply is received.
+                    Live agent progress (Intake → Summary) is in the <strong className="text-foreground/90">modal</strong>{" "}
+                    over the chat until the reply is received.
                   </p>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     className="border-primary/25 text-xs"
-                    onClick={scrollToAgentWorkflow}
+                    onClick={scrollToExecutiveOutput}
                   >
-                    Scroll to AI Agent Workflow
+                    Scroll to executive output
                   </Button>
                 </div>
               ) : sessionPhase === "revealed" && executivePayload ? (

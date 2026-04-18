@@ -2,18 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import {
-  Boxes,
-  Check,
-  Circle,
-  FileDown,
-  Layers,
-  ListOrdered,
-  Loader2,
-  Sparkles,
-  Target,
-  Users,
-} from "lucide-react"
+import { Boxes, FileDown, Layers, ListOrdered, Loader2, Sparkles, Target, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import type { AppSuiteProposalPayload, SoftwareProposalPayload } from "@/lib/software-proposal-types"
 import { parseStructuredProposal } from "@/lib/software-proposal-types"
@@ -33,36 +21,13 @@ import { parseKanbanBoardPayload } from "@/lib/kanban-planning-types"
 import { useSoftwareProposal } from "@/components/software-proposal-context"
 import { exportProposalToPdf } from "@/lib/export-proposal-pdf"
 import { SOFTWARE_PROPOSAL_OUTPUT_SECTION_ID } from "@/lib/workspace-section-ids"
+import { PipelineDialogLoader } from "@/components/pipeline-dialog-loader"
+import { PLANNING_PIPELINE_STEPS } from "@/lib/planning-pipeline-steps"
 import { toast } from "sonner"
 
 const PLANNING_WEBHOOK_API = "/api/n8n/planning"
 
-const PLANNING_LOADER_STEPS: {
-  title: string
-  description: string
-  icon: ComponentType<{ className?: string }>
-}[] = [
-  {
-    title: "Ingesting proposal & session",
-    description: "Structured fields and your saved copilot context are packaged for n8n.",
-    icon: Layers,
-  },
-  {
-    title: "Matching people to work",
-    description: "Availability, roles, and task hints are aligned for realistic allocation.",
-    icon: Users,
-  },
-  {
-    title: "Shaping the Kanban board",
-    description: "Columns, swimlanes, and task cards are being composed from the plan.",
-    icon: ListOrdered,
-  },
-  {
-    title: "Wiring dependencies & handoff",
-    description: "Links between tasks and owners are finalized before the board appears.",
-    icon: Target,
-  },
-]
+type PlanningUiPhase = "intro" | "working" | "done"
 
 function PlanningApproachExplainer() {
   return (
@@ -177,125 +142,6 @@ function PlanningApproachExplainer() {
           <span className="font-medium text-foreground">Yes — proceed with planning</span> will send your proposal and
           session context to the planning webhook to generate the board.
         </p>
-      </div>
-    </div>
-  )
-}
-
-function PlanningDialogLoader({
-  activeStepIndex,
-  progress,
-}: {
-  activeStepIndex: number
-  progress: number
-}) {
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-primary/25 bg-gradient-to-b from-primary/[0.07] via-background to-background p-1 shadow-inner">
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -inset-px rounded-xl bg-[conic-gradient(from_180deg_at_50%_50%,var(--primary)_0deg,transparent_120deg,transparent_240deg,var(--primary)_360deg)] opacity-40 blur-sm"
-        animate={{ rotate: [0, 360] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
-      />
-      <div className="relative rounded-[10px] bg-card/95 px-4 py-5 backdrop-blur-sm">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <motion.span
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10"
-              animate={{ scale: [1, 1.06, 1] }}
-              transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-            >
-              <Sparkles className="h-4 w-4 text-primary" aria-hidden />
-            </motion.span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Planning pipeline</p>
-              <p className="text-xs text-muted-foreground">Hang tight — your board is being assembled.</p>
-            </div>
-          </div>
-          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-primary" aria-hidden />
-        </div>
-
-        <div className="mb-5 space-y-1.5">
-          <div className="flex justify-between text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            <span>Progress</span>
-            <span>{Math.round(Math.min(progress, 100))}%</span>
-          </div>
-          <Progress value={Math.min(progress, 100)} className="h-2 bg-secondary/80 [&>div]:transition-all [&>div]:duration-700" />
-        </div>
-
-        <ul className="space-y-3" aria-label="Planning steps">
-          {PLANNING_LOADER_STEPS.map((step, i) => {
-            const done = i < activeStepIndex
-            const active = i === activeStepIndex
-            const Icon = step.icon
-            return (
-              <motion.li
-                key={step.title}
-                layout
-                initial={false}
-                animate={{
-                  opacity: done || active ? 1 : 0.45,
-                  x: done || active ? 0 : -6,
-                }}
-                transition={{ type: "spring", stiffness: 420, damping: 28 }}
-                className={cn(
-                  "flex gap-3 rounded-lg border px-3 py-2.5 transition-colors",
-                  active && "border-primary/35 bg-primary/[0.06] shadow-sm shadow-primary/5",
-                  done && "border-emerald-500/25 bg-emerald-500/[0.04]",
-                  !done && !active && "border-transparent bg-transparent"
-                )}
-              >
-                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center">
-                  <AnimatePresence mode="wait" initial={false}>
-                    {done ? (
-                      <motion.span
-                        key="check"
-                        initial={{ scale: 0.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.5, opacity: 0 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 26 }}
-                        className="flex text-emerald-600 dark:text-emerald-400"
-                      >
-                        <Check className="h-5 w-5" strokeWidth={2.5} aria-hidden />
-                      </motion.span>
-                    ) : active ? (
-                      <motion.span
-                        key="spin"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="text-primary"
-                      >
-                        <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                      </motion.span>
-                    ) : (
-                      <motion.span key="wait" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-muted-foreground">
-                        <Circle className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <Icon className={cn("h-3.5 w-3.5 shrink-0", active ? "text-primary" : "text-muted-foreground")} aria-hidden />
-                    <p className={cn("text-sm font-medium leading-snug", active ? "text-foreground" : "text-foreground/85")}>
-                      {step.title}
-                    </p>
-                  </div>
-                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{step.description}</p>
-                </div>
-              </motion.li>
-            )
-          })}
-        </ul>
-
-        <motion.p
-          className="mt-4 text-center text-[11px] text-muted-foreground"
-          animate={{ opacity: [0.65, 1, 0.65] }}
-          transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-        >
-          Cold starts on n8n can add a few extra seconds — nothing is stuck.
-        </motion.p>
       </div>
     </div>
   )
@@ -479,6 +325,7 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
   const proposalPrintRootRef = useRef<HTMLDivElement>(null)
   const [pdfExporting, setPdfExporting] = useState(false)
   const [planningModalOpen, setPlanningModalOpen] = useState(false)
+  const [planningUiPhase, setPlanningUiPhase] = useState<PlanningUiPhase>("intro")
   const [planningSubmitLoading, setPlanningSubmitLoading] = useState(false)
   const [planningSubmitError, setPlanningSubmitError] = useState<string | null>(null)
   const [planningLoaderStep, setPlanningLoaderStep] = useState(0)
@@ -486,13 +333,9 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
   const structured = parseStructuredProposal(rawData)
 
   useEffect(() => {
-    if (!planningSubmitLoading) {
-      setPlanningLoaderStep(0)
-      setPlanningLoaderProgress(8)
-      return
-    }
+    if (planningUiPhase !== "working") return
     const stepTimer = window.setInterval(() => {
-      setPlanningLoaderStep((s) => Math.min(s + 1, PLANNING_LOADER_STEPS.length - 1))
+      setPlanningLoaderStep((s) => Math.min(s + 1, PLANNING_PIPELINE_STEPS.length - 1))
     }, 2100)
     const progressTimer = window.setInterval(() => {
       setPlanningLoaderProgress((p) => {
@@ -504,20 +347,44 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
       window.clearInterval(stepTimer)
       window.clearInterval(progressTimer)
     }
-  }, [planningSubmitLoading])
+  }, [planningUiPhase])
 
-  const onPlanningModalOpenChange = useCallback((open: boolean) => {
-    setPlanningModalOpen(open)
-    if (!open) {
-      setPlanningSubmitError(null)
-      setPlanningLoaderStep(0)
-      setPlanningLoaderProgress(8)
-    }
+  const handlePlanningOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && (planningUiPhase === "working" || planningUiPhase === "done")) return
+      setPlanningModalOpen(open)
+      if (!open) {
+        setPlanningSubmitError(null)
+        setPlanningLoaderStep(0)
+        setPlanningLoaderProgress(8)
+        setPlanningUiPhase("intro")
+      }
+    },
+    [planningUiPhase]
+  )
+
+  const dismissPlanningModal = useCallback(() => {
+    setPlanningUiPhase("intro")
+    setPlanningSubmitError(null)
+    setPlanningLoaderStep(0)
+    setPlanningLoaderProgress(8)
+    setPlanningModalOpen(false)
+  }, [])
+
+  const openPlanningModal = useCallback(() => {
+    setPlanningUiPhase("intro")
+    setPlanningSubmitError(null)
+    setPlanningLoaderStep(0)
+    setPlanningLoaderProgress(8)
+    setPlanningModalOpen(true)
   }, [])
 
   const confirmStartPlanning = useCallback(async () => {
     setPlanningSubmitError(null)
+    setPlanningUiPhase("working")
     setPlanningSubmitLoading(true)
+    setPlanningLoaderStep(0)
+    setPlanningLoaderProgress(8)
     try {
       const copilotSession = loadCopilotSession()
       const res = await fetch(PLANNING_WEBHOOK_API, {
@@ -556,9 +423,12 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
         )
       }
       setPlanningBoard(board)
-      setPlanningModalOpen(false)
+      setPlanningLoaderStep(PLANNING_PIPELINE_STEPS.length)
+      setPlanningLoaderProgress(100)
+      setPlanningUiPhase("done")
     } catch (e) {
       setPlanningSubmitError(e instanceof Error ? e.message : "Could not confirm planning")
+      setPlanningUiPhase("done")
     } finally {
       setPlanningSubmitLoading(false)
     }
@@ -619,7 +489,7 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
               {pdfExporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <FileDown className="h-4 w-4" aria-hidden />}
               {pdfExporting ? "Building PDF…" : "Save as PDF"}
             </Button>
-            <Button type="button" variant="secondary" className="gap-2" onClick={() => setPlanningModalOpen(true)}>
+            <Button type="button" variant="secondary" className="gap-2" onClick={openPlanningModal}>
               Start planning
             </Button>
           </div>
@@ -644,31 +514,36 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
         </div>
       </div>
 
-      <Dialog open={planningModalOpen} onOpenChange={onPlanningModalOpenChange}>
+      <Dialog open={planningModalOpen} onOpenChange={handlePlanningOpenChange}>
         <DialogContent
-          showCloseButton={!planningSubmitLoading}
+          showCloseButton={planningUiPhase === "intro"}
           className={cn(
             "gap-0 overflow-hidden p-0 sm:max-w-2xl",
-            planningSubmitLoading && "sm:max-w-lg"
+            (planningUiPhase === "working" || planningUiPhase === "done") && "sm:max-w-lg"
           )}
           onPointerDownOutside={(e) => {
-            if (planningSubmitLoading) e.preventDefault()
+            if (planningUiPhase === "working" || planningUiPhase === "done") e.preventDefault()
           }}
           onEscapeKeyDown={(e) => {
-            if (planningSubmitLoading) e.preventDefault()
+            if (planningUiPhase === "working" || planningUiPhase === "done") e.preventDefault()
           }}
         >
           <div className="p-6 pb-4">
             <DialogHeader>
               <DialogTitle>
-                {planningSubmitLoading ? "Building your plan…" : "Planning handoff — review before you continue"}
+                {planningUiPhase === "intro" && "Planning handoff — review before you continue"}
+                {planningUiPhase === "working" && "Building your plan…"}
+                {planningUiPhase === "done" &&
+                  (planningSubmitError ? "Planning could not finish" : "Planning complete")}
               </DialogTitle>
               <DialogDescription className="sr-only">
-                {planningSubmitLoading
-                  ? "Planning is running; progress steps are shown below."
-                  : "Overview of how employee data, proposal inputs, and Kanban JSON outputs are used before you confirm planning."}
+                {planningUiPhase === "intro" &&
+                  "Overview of how employee data, proposal inputs, and Kanban JSON outputs are used before you confirm planning."}
+                {planningUiPhase === "working" && "Planning is running; progress steps are shown below."}
+                {planningUiPhase === "done" &&
+                  (planningSubmitError ? "An error occurred during planning." : "Planning finished successfully.")}
               </DialogDescription>
-              {!planningSubmitLoading ? (
+              {planningUiPhase === "intro" ? (
                 <>
                   <p className="mt-2 text-left text-sm text-muted-foreground">
                     Below is how this step uses your proposal and people data, what you should expect back, and how the
@@ -676,16 +551,25 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
                   </p>
                   <PlanningApproachExplainer />
                 </>
+              ) : planningUiPhase === "working" ? (
+                <p className="mt-2 text-left text-sm text-muted-foreground">
+                  You can read the steps below while n8n prepares your Kanban board. This dialog stays open until you
+                  choose Completed.
+                </p>
+              ) : planningSubmitError ? (
+                <p className="mt-2 text-left text-sm text-muted-foreground">
+                  Review the error below, then choose Completed to close this window.
+                </p>
               ) : (
                 <p className="mt-2 text-left text-sm text-muted-foreground">
-                  You can read the steps below while n8n prepares your Kanban board.
+                  Your Kanban board is ready below. Choose Completed when you are done reviewing this summary.
                 </p>
               )}
             </DialogHeader>
           </div>
 
           <AnimatePresence initial={false} mode="wait">
-            {planningSubmitLoading ? (
+            {(planningUiPhase === "working" || planningUiPhase === "done") && (
               <motion.div
                 key="planning-loader"
                 initial={{ opacity: 0, height: 0 }}
@@ -694,48 +578,60 @@ export function SoftwareProposalFullSection({ rawData }: SoftwareProposalFullSec
                 transition={{ duration: 0.28, ease: "easeOut" }}
                 className="border-t border-border/50 bg-muted/20 px-6 pb-6"
               >
-                <div className="pt-4">
-                  <PlanningDialogLoader activeStepIndex={planningLoaderStep} progress={planningLoaderProgress} />
+                <div className="space-y-4 pt-4">
+                  <PipelineDialogLoader
+                    activeStepIndex={planningLoaderStep}
+                    progress={planningLoaderProgress}
+                    steps={PLANNING_PIPELINE_STEPS}
+                    pipelineTitle="Planning pipeline"
+                    pipelineSubtitle={
+                      planningUiPhase === "done" && !planningSubmitError
+                        ? "All steps finished."
+                        : planningUiPhase === "done" && planningSubmitError
+                          ? "Run ended with an error."
+                          : "Hang tight — your board is being assembled."
+                    }
+                    isComplete={planningUiPhase === "done"}
+                    errorMessage={planningUiPhase === "done" && planningSubmitError ? planningSubmitError : null}
+                    footerHint={
+                      planningUiPhase === "done" && !planningSubmitError
+                        ? "Scroll down on the page to explore your new board."
+                        : "Cold starts on n8n can add a few extra seconds — nothing is stuck."
+                    }
+                  />
                 </div>
               </motion.div>
-            ) : planningSubmitError ? (
-              <motion.div
-                key="planning-error"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="border-t border-border/50 px-6 pb-4"
-              >
-                <p className="pt-3 text-sm text-destructive" role="alert">
-                  {planningSubmitError}
-                </p>
-              </motion.div>
-            ) : null}
+            )}
           </AnimatePresence>
 
           <div className="border-t border-border/50 bg-background p-6 pt-4">
             <DialogFooter className="gap-2 sm:justify-end">
-              <DialogClose asChild>
-                <Button type="button" variant="outline" disabled={planningSubmitLoading}>
-                  {planningSubmitLoading ? "Please wait" : "Cancel"}
+              {planningUiPhase === "intro" ? (
+                <>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      Cancel
+                    </Button>
+                  </DialogClose>
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="min-w-[8.5rem] gap-2"
+                    disabled={planningSubmitLoading}
+                    onClick={() => void confirmStartPlanning()}
+                  >
+                    Yes — proceed with planning
+                  </Button>
+                </>
+              ) : planningUiPhase === "working" ? (
+                <p className="w-full text-center text-xs text-muted-foreground sm:text-left">
+                  Please wait — this window stays open until the run finishes.
+                </p>
+              ) : (
+                <Button type="button" variant="default" className="min-w-[10rem] sm:ml-auto" onClick={dismissPlanningModal}>
+                  Completed
                 </Button>
-              </DialogClose>
-              <Button
-                type="button"
-                variant="default"
-                className="min-w-[8.5rem] gap-2"
-                disabled={planningSubmitLoading}
-                onClick={() => void confirmStartPlanning()}
-              >
-                {planningSubmitLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    Working…
-                  </>
-                ) : (
-                  "Yes — proceed with planning"
-                )}
-              </Button>
+              )}
             </DialogFooter>
           </div>
         </DialogContent>

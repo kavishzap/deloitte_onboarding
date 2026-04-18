@@ -1,6 +1,86 @@
 import html2canvas from "html2canvas"
 import { jsPDF } from "jspdf"
 
+const UNSUPPORTED_COLOR_FN_RE = /\b(?:lab|lch|oklab|oklch|color-mix)\s*\(/i
+
+const COPIED_LAYOUT_PROPS = [
+  "display",
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "z-index",
+  "box-sizing",
+  "width",
+  "height",
+  "min-width",
+  "min-height",
+  "max-width",
+  "max-height",
+  "margin-top",
+  "margin-right",
+  "margin-bottom",
+  "margin-left",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+  "flex-direction",
+  "flex-wrap",
+  "flex-grow",
+  "flex-shrink",
+  "flex-basis",
+  "justify-content",
+  "align-items",
+  "align-content",
+  "align-self",
+  "justify-self",
+  "order",
+  "gap",
+  "row-gap",
+  "column-gap",
+  "grid-template-columns",
+  "grid-template-rows",
+  "grid-column",
+  "grid-row",
+  "place-items",
+  "place-content",
+  "place-self",
+  "overflow",
+  "overflow-x",
+  "overflow-y",
+  "opacity",
+  "visibility",
+  "transform",
+  "transform-origin",
+  "border-radius",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "line-height",
+  "letter-spacing",
+  "text-align",
+  "text-transform",
+  "white-space",
+  "word-break",
+  "overflow-wrap",
+  "list-style-type",
+  "list-style-position",
+  "vertical-align",
+  "object-fit",
+  "object-position",
+  "fill",
+  "stroke",
+] as const
+
+type StylableElement = HTMLElement | SVGElement
+
+function isStylableElement(el: Element): el is StylableElement {
+  return el instanceof HTMLElement || el instanceof SVGElement
+}
+
 function defaultProposalFilename(): string {
   const d = new Date()
   const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -9,18 +89,39 @@ function defaultProposalFilename(): string {
 
 /**
  * html2canvas cannot parse modern CSS color spaces (lab/oklch/color-mix) from stylesheets.
- * Copy resolved rgb/rgba values from the live DOM onto the clone so rasterisation succeeds.
+ * Copy resolved values from the live DOM onto the clone and strip stylesheet sources that
+ * would otherwise be reparsed by html2canvas.
  */
+function stripProblematicStylesheets(clonedDoc: Document): void {
+  for (const link of Array.from(clonedDoc.querySelectorAll('link[rel="stylesheet"]'))) {
+    link.remove()
+  }
+
+  for (const style of Array.from(clonedDoc.querySelectorAll("style"))) {
+    const text = style.textContent ?? ""
+    if (UNSUPPORTED_COLOR_FN_RE.test(text)) {
+      style.remove()
+    }
+  }
+}
+
 function applyPdfSafeInlineStyles(sourceRoot: HTMLElement, cloneRoot: HTMLElement): void {
-  const stack: [HTMLElement, HTMLElement][] = [[sourceRoot, cloneRoot]]
+  const stack: [Element, Element][] = [[sourceRoot, cloneRoot]]
 
   while (stack.length > 0) {
     const [src, dst] = stack.pop()!
 
     if (src.nodeType !== Node.ELEMENT_NODE || dst.nodeType !== Node.ELEMENT_NODE) continue
-    if (!(src instanceof HTMLElement) || !(dst instanceof HTMLElement)) continue
+    if (!isStylableElement(src) || !isStylableElement(dst)) continue
 
     const cs = window.getComputedStyle(src)
+
+    for (const prop of COPIED_LAYOUT_PROPS) {
+      const value = cs.getPropertyValue(prop)
+      if (value) {
+        dst.style.setProperty(prop, value)
+      }
+    }
 
     dst.style.color = cs.color
     if ("webkitTextFillColor" in cs && typeof (cs as CSSStyleDeclaration & { webkitTextFillColor?: string }).webkitTextFillColor === "string") {
@@ -61,7 +162,7 @@ function applyPdfSafeInlineStyles(sourceRoot: HTMLElement, cloneRoot: HTMLElemen
     for (let i = 0; i < n; i++) {
       const sc = srcKids[i]
       const dc = dstKids[i]
-      if (sc instanceof HTMLElement && dc instanceof HTMLElement) {
+      if (sc instanceof Element && dc instanceof Element) {
         stack.push([sc, dc])
       }
     }
@@ -86,8 +187,10 @@ export async function exportProposalToPdf(
     scrollY: -window.scrollY,
     windowWidth: element.scrollWidth,
     windowHeight: element.scrollHeight,
-    onclone: (_clonedDoc, clonedElement) => {
+    onclone: (clonedDoc, clonedElement) => {
       if (!(clonedElement instanceof HTMLElement)) return
+      stripProblematicStylesheets(clonedDoc)
+      clonedDoc.body.style.backgroundColor = "#ffffff"
       applyPdfSafeInlineStyles(element, clonedElement)
     },
   })

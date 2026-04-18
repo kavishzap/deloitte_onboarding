@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { KanbanDraggableColumns } from "@/components/kanban-draggable-columns"
 import { useSoftwareProposal } from "@/components/software-proposal-context"
 import { removeReviewColumnFromBoard, type KanbanBoardPayload } from "@/lib/kanban-planning-types"
-import { cn } from "@/lib/utils"
+import { toRepositoryPreviewSrcDoc } from "@/lib/repository-preview-srcdoc"
 import { buildProjectSummaryText } from "@/lib/project-html-agent"
 import { parseStructuredProposal } from "@/lib/software-proposal-types"
 import { KanbanCompletionPie } from "@/components/kanban-completion-pie"
@@ -30,6 +30,11 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
   const [repoError, setRepoError] = useState<string | null>(null)
 
   const displayBoard = useMemo(() => removeReviewColumnFromBoard(board), [board])
+
+  const repositorySrcDoc = useMemo(
+    () => (repositoryHtml ? toRepositoryPreviewSrcDoc(repositoryHtml) : ""),
+    [repositoryHtml]
+  )
 
   const generateRepositoryPreview = useCallback(async () => {
     setRepoError(null)
@@ -203,18 +208,20 @@ export function PlanningKanbanBoard({ board }: PlanningKanbanBoardProps) {
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base font-medium text-foreground">Rendered output</CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Generated HTML is injected below. Trusted agent output only — sanitize before production.
+                    Shown inside a sandboxed iframe so agent CSS and layout cannot override this app. Scripts inside
+                    the preview are restricted by the iframe sandbox.
                   </p>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div
-                    className={cn(
-                      "repo-html-preview max-h-[min(80vh,48rem)] overflow-auto rounded-xl border border-border/40 bg-muted/15 p-4 sm:p-6",
-                      "[&_img]:max-w-full [&_img]:h-auto [&_table]:w-full [&_table]:text-sm",
-                      "[&_a]:text-primary [&_a]:underline-offset-2"
-                    )}
-                    dangerouslySetInnerHTML={{ __html: repositoryHtml }}
-                  />
+                  <div className="overflow-hidden rounded-xl border border-border/40 bg-muted/20">
+                    <iframe
+                      title="Generated repository HTML preview"
+                      className="block h-[min(80vh,48rem)] w-full bg-background"
+                      srcDoc={repositorySrcDoc}
+                      sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
                 </CardContent>
               </Card>
             ) : null}

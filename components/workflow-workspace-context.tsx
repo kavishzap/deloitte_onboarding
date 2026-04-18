@@ -11,24 +11,15 @@ import {
   type ReactNode,
 } from "react"
 import type { ParsedResponse } from "@/lib/copilot-response-types"
-import {
-  clearCopilotSession,
-  loadCopilotSession,
-  saveCopilotSession,
-} from "@/lib/copilot-local-session"
-import {
-  buildLoadingSimulationAgents,
-  getCompletedAgents,
-  getWaitingAgents,
-  type Agent,
-} from "@/lib/agent-workflow-model"
+import { clearCopilotSession, loadCopilotSession, saveCopilotSession } from "@/lib/copilot-local-session"
 
 export type WorkspaceSessionPhase = "fresh" | "awaiting_continue" | "revealed"
 
+export const EXECUTIVE_OUTPUT_ANCHOR_ID = "executive-output-panel"
+
 type WorkflowWorkspaceValue = {
-  agents: Agent[]
-  /** While copilot request is in flight: sequential run animation (mirrors `agents` when null). */
-  loadingSimAgents: Agent[] | null
+  /** True while the Transformation Copilot request is in flight (progress lives in the chat modal). */
+  isCopilotLoading: boolean
   sessionPhase: WorkspaceSessionPhase
   pendingReplyId: string | null
   executivePayload: ParsedResponse | null
@@ -43,23 +34,19 @@ type WorkflowWorkspaceValue = {
 
 const WorkflowWorkspaceContext = createContext<WorkflowWorkspaceValue | null>(null)
 
-const WORKFLOW_ANCHOR_ID = "agent-workflow"
-
-/** Time on each workflow step while the copilot request is in flight — slower so progress feels deliberate. */
-const LOADING_STEP_MS = 3400
-/** Max step while the copilot request is in flight — hold on summary agent "running" until the response returns (no fake "all complete"). */
-const LOADING_SIM_MAX_STEP = 5
-
-export function scrollToAgentWorkflow() {
-  document.getElementById(WORKFLOW_ANCHOR_ID)?.scrollIntoView({
+export function scrollToExecutiveOutput() {
+  document.getElementById(EXECUTIVE_OUTPUT_ANCHOR_ID)?.scrollIntoView({
     behavior: "smooth",
     block: "start",
   })
 }
 
+/** @deprecated Use scrollToExecutiveOutput — workflow timeline was removed. */
+export function scrollToAgentWorkflow() {
+  scrollToExecutiveOutput()
+}
+
 export function WorkflowWorkspaceProvider({ children }: { children: ReactNode }) {
-  const [agents, setAgents] = useState<Agent[]>(() => getWaitingAgents())
-  const [loadingSimAgents, setLoadingSimAgents] = useState<Agent[] | null>(null)
   const [isCopilotLoading, setIsCopilotLoading] = useState(false)
   const [sessionPhase, setSessionPhase] = useState<WorkspaceSessionPhase>("fresh")
   const [pendingReplyId, setPendingReplyId] = useState<string | null>(null)
@@ -68,46 +55,11 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
   const [executivePayload, setExecutivePayload] = useState<ParsedResponse | null>(null)
   const [executiveFallbackText, setExecutiveFallbackText] = useState<string | null>(null)
   const [workspaceStorageHydrated, setWorkspaceStorageHydrated] = useState(false)
-  const loadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sessionResetHandlersRef = useRef(new Set<() => void>())
 
   const notifyCopilotLoading = useCallback((loading: boolean) => {
     setIsCopilotLoading(loading)
   }, [])
-
-  useEffect(() => {
-    if (loadIntervalRef.current) {
-      clearInterval(loadIntervalRef.current)
-      loadIntervalRef.current = null
-    }
-    if (!isCopilotLoading) {
-      setLoadingSimAgents(null)
-      return
-    }
-
-    let step = 0
-    setLoadingSimAgents(buildLoadingSimulationAgents(0))
-
-    loadIntervalRef.current = setInterval(() => {
-      if (step >= LOADING_SIM_MAX_STEP) {
-        if (loadIntervalRef.current) {
-          clearInterval(loadIntervalRef.current)
-          loadIntervalRef.current = null
-        }
-        return
-      }
-      step += 1
-      setLoadingSimAgents(buildLoadingSimulationAgents(step))
-    }, LOADING_STEP_MS)
-
-    return () => {
-      if (loadIntervalRef.current) {
-        clearInterval(loadIntervalRef.current)
-        loadIntervalRef.current = null
-      }
-      setLoadingSimAgents(null)
-    }
-  }, [isCopilotLoading])
 
   useEffect(() => {
     const snap = loadCopilotSession()
@@ -120,7 +72,6 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
       if (w.sessionPhase === "awaiting_continue" && hasPendingContent) {
         const parsed = w.pendingParsed
         const raw = typeof w.pendingRaw === "string" ? w.pendingRaw : ""
-        setAgents(getCompletedAgents())
         const structured =
           parsed &&
           !!(
@@ -147,11 +98,6 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
         setPendingRaw(w.pendingRaw)
         setExecutivePayload(w.executivePayload)
         setExecutiveFallbackText(w.executiveFallbackText)
-        if (w.sessionPhase === "revealed") {
-          setAgents(getCompletedAgents())
-        } else {
-          setAgents(getWaitingAgents())
-        }
       }
     }
     setWorkspaceStorageHydrated(true)
@@ -180,7 +126,6 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
   ])
 
   const revealExecutiveFromParsed = useCallback((parsed: ParsedResponse | null, rawContent: string) => {
-    setAgents(getCompletedAgents())
     const structured =
       parsed &&
       !!(
@@ -200,7 +145,7 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
     setPendingParsed(null)
     setPendingRaw(null)
     setSessionPhase("revealed")
-    requestAnimationFrame(() => scrollToAgentWorkflow())
+    requestAnimationFrame(() => scrollToExecutiveOutput())
   }, [])
 
   const onAssistantReply = useCallback(
@@ -227,7 +172,6 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
 
   const restartWorkspace = useCallback(() => {
     clearCopilotSession()
-    setAgents(getWaitingAgents())
     setSessionPhase("fresh")
     setPendingReplyId(null)
     setPendingParsed(null)
@@ -246,8 +190,7 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
   const value = useMemo(
     () =>
       ({
-        agents,
-        loadingSimAgents,
+        isCopilotLoading,
         sessionPhase,
         pendingReplyId,
         executivePayload,
@@ -259,8 +202,7 @@ export function WorkflowWorkspaceProvider({ children }: { children: ReactNode })
         notifyCopilotLoading,
       }) satisfies WorkflowWorkspaceValue,
     [
-      agents,
-      loadingSimAgents,
+      isCopilotLoading,
       sessionPhase,
       pendingReplyId,
       executivePayload,
@@ -285,5 +227,3 @@ export function useWorkflowWorkspace() {
   }
   return ctx
 }
-
-export { WORKFLOW_ANCHOR_ID }

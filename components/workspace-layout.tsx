@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react"
 import { motion } from "framer-motion"
-import { AgentWorkflowTimeline } from "@/components/agent-workflow-timeline"
 import { ExecutiveOutputPanel } from "@/components/executive-output-panel"
 import {
   PLANNING_KANBAN_SECTION_ID,
@@ -42,7 +41,6 @@ export function WorkspaceLayout() {
           transition={{ duration: 0.5 }}
           className="flex flex-col gap-6"
         >
-          <AgentWorkflowTimeline />
           <ExecutiveOutputPanel />
         </motion.div>
       </div>
